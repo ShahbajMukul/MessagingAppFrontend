@@ -1,0 +1,154 @@
+﻿@page "/"
+@page "/register"
+@using System.Text.RegularExpressions
+
+@inject MessagingService MessagingService
+<PageTitle>MessagingApp</PageTitle>
+
+
+<div class="container d-flex justify-content-center align-items-center vh-100">
+    <div class="card p-4 shadow" style="width: 450px;">
+        <h3 class="card-title text-center mb-4">Nexus Messaging App Registration</h3>
+        <EditForm Model="registrationPayload" OnValidSubmit="RegisterUser">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-error" />
+
+            @* <div class="mb-3">
+                <div class="text-muted">
+                    If you're a student, login with student number. If you're a committee member,
+                    login with committee member ID.
+                </div>
+
+            </div> *@
+            <div class="mb-3">
+                <label class="form-label">First Name</label>
+                <InputText Required class="form-control" @bind-Value="registrationPayload.FirstName" />
+                <ValidationMessage For="@(() => registrationPayload.FirstName)" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Last Name</label>
+                <InputText Required class="form-control" @bind-Value="registrationPayload.LastName" />
+                <ValidationMessage For="@(() => registrationPayload.LastName)" />
+            </div>
+            <div class="mb-3">
+                <label Required class="form-label">Username</label>
+                <InputText class="form-control" @bind-Value="registrationPayload.Username" />
+                <ValidationMessage For="@(() => registrationPayload.Username)" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <InputText Required class="form-control" @bind-Value="registrationPayload.Email" />
+                <ValidationMessage For="@(() => registrationPayload.Email)" />
+            </div>
+
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <MudTextField T="string" HelperText="Choose a strong password" @ref="pwField1"
+                              InputType="InputType.Password" @bind-Value="registrationPayload.Password"
+                              Validation="@(new Func<string, IEnumerable<string>>(PasswordStrength))" Required="true"
+                              RequiredError="Password is required!" />
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <MudTextField T="string"
+                              HelperText="Repeat the password" InputType="InputType.Password"
+                              Validation="@(new Func<string, string>(PasswordMatch))" />
+            </div>
+
+            @if (regiResult != null && !string.IsNullOrEmpty(regiResult.ErrorMessage))
+            {
+                <div class="alert alert-danger">@regiResult.ErrorMessage</div>
+            } 
+
+            <button type="submit" class="btn btn-primary w-100">Register</button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private RegistrationPayload registrationPayload = new();
+    private ApiResponse<RegistrationResult>? regiResult;
+    private bool isLoading = false;
+    MudTextField<string> pwField1;
+
+    protected override void OnInitialized()
+    {
+        // No need to reinitialize since we already have "= new()" above
+        // But we can set default values if needed
+        registrationPayload.PublicKey = "ThisIsATestPublicKey";
+    }
+
+    private async Task RegisterUser()
+    {
+        try
+        {
+            // Add loading state if needed
+            isLoading = true;
+
+            regiResult = await MessagingService.RegisterUserAsync(registrationPayload);
+
+            if (regiResult == null)
+            {
+                regiResult = new ApiResponse<RegistrationResult>
+                    {
+                        ErrorMessage = "No response received from the server. Please check your connection."
+                    };
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            regiResult = new ApiResponse<RegistrationResult>
+                {
+                    ErrorMessage = "The request timed out. Please try again later."
+                };
+        }
+        catch (HttpRequestException ex)
+        {
+            regiResult = new ApiResponse<RegistrationResult>
+                {
+                    ErrorMessage = $"Network error: {ex.Message}"
+                };
+        }
+        catch (Exception ex)
+        {
+            // Handle any unexpected exceptions
+            regiResult = new ApiResponse<RegistrationResult>
+                {
+                    ErrorMessage = $"An unexpected error occurred: {ex.Message}"
+                };
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged(); // Ensure UI updates after the async operation
+        }
+    }
+
+
+
+
+
+    private IEnumerable<string> PasswordStrength(string pw)
+    {
+        if (string.IsNullOrWhiteSpace(pw))
+        {
+            yield return "Password is required!";
+            yield break;
+        }
+        if (pw.Length < 8)
+            yield return "Password must be at least of length 8";
+        if (!Regex.IsMatch(pw, @"[A-Z]"))
+            yield return "Password must contain at least one capital letter";
+        if (!Regex.IsMatch(pw, @"[a-z]"))
+            yield return "Password must contain at least one lowercase letter";
+        if (!Regex.IsMatch(pw, @"[0-9]"))
+            yield return "Password must contain at least one digit";
+    }
+
+    private string PasswordMatch(string arg)
+    {
+        if (pwField1.Value != arg)
+            return "Passwords don't match";
+        return null;
+    }
+}

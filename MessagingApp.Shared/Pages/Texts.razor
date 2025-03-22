@@ -1,0 +1,14 @@
+﻿@page "/test"
+
+<h3>Working? -> @result</h3>
+
+
+@code {
+    private string result = "initial text";
+
+    protected override async Task OnInitializedAsync()
+    {
+        result = await MessagingService.TestAsync();
+        StateHasChanged();
+    }
+}
