@@ -1,5 +1,4 @@
-﻿@page "/"
-@page "/register"
+﻿@page "/register"
 @using System.Text.RegularExpressions
 
 @inject MessagingService MessagingService
@@ -13,6 +12,10 @@
             <DataAnnotationsValidator />
             <ValidationSummary class="text-error" />
 
+            @if (regiResult != null && !string.IsNullOrEmpty(regiResult.ErrorMessage))
+            {
+                <div class="alert alert-danger">@regiResult.ErrorMessage</div>
+            }
             @* <div class="mb-3">
                 <div class="text-muted">
                     If you're a student, login with student number. If you're a committee member,
@@ -22,45 +25,42 @@
             </div> *@
             <div class="mb-3">
                 <label class="form-label">First Name</label>
-                <InputText Required class="form-control" @bind-Value="registrationPayload.FirstName" />
+                <InputText  class="form-control" @bind-Value="registrationPayload.FirstName" />
                 <ValidationMessage For="@(() => registrationPayload.FirstName)" />
             </div>
             <div class="mb-3">
                 <label class="form-label">Last Name</label>
-                <InputText Required class="form-control" @bind-Value="registrationPayload.LastName" />
+                <InputText  class="form-control" @bind-Value="registrationPayload.LastName" />
                 <ValidationMessage For="@(() => registrationPayload.LastName)" />
             </div>
             <div class="mb-3">
-                <label Required class="form-label">Username</label>
+                <label  class="form-label">Username</label>
                 <InputText class="form-control" @bind-Value="registrationPayload.Username" />
                 <ValidationMessage For="@(() => registrationPayload.Username)" />
             </div>
             <div class="mb-3">
-                <label class="form-label">Email</label>
-                <InputText Required class="form-control" @bind-Value="registrationPayload.Email" />
+                <label for="email" class="form-label">Email</label>
+                <InputText  class="form-control" @bind-Value="registrationPayload.Email" />
                 <ValidationMessage For="@(() => registrationPayload.Email)" />
             </div>
 
             <div class="mb-3">
                 <label for="password" class="form-label">Password</label>
-                <MudTextField T="string" HelperText="Choose a strong password" @ref="pwField1"
-                              InputType="InputType.Password" @bind-Value="registrationPayload.Password"
-                              Validation="@(new Func<string, IEnumerable<string>>(PasswordStrength))" Required="true"
-                              RequiredError="Password is required!" />
+                <InputText  class="form-control" type="password" @bind-Value="registrationPayload.Password" />
+                @* <MudTextField @bind-Value="registrationPayload.Password" Label="Password" Variant="Variant.Text" InputType="@InputType.Password" Adornment="Adornment.End" AdornmentIcon="@registrationPayload.Password" AdornmentAriaLabel="Show Password" /> *@
+                <ValidationMessage For="@(() => registrationPayload.Password)" />
+
             </div>
-            <div class="mb-3">
+            @* <div class="mb-3">
                 <label for="password" class="form-label">Password</label>
                 <MudTextField T="string"
                               HelperText="Repeat the password" InputType="InputType.Password"
                               Validation="@(new Func<string, string>(PasswordMatch))" />
-            </div>
+            </div> *@
 
-            @if (regiResult != null && !string.IsNullOrEmpty(regiResult.ErrorMessage))
-            {
-                <div class="alert alert-danger">@regiResult.ErrorMessage</div>
-            } 
 
             <button type="submit" class="btn btn-primary w-100">Register</button>
+            <MudButton Color="Color.Secondary" OnClick="NevigateToLogin">Already have an account? Login</MudButton>
         </EditForm>
     </div>
 </div>
@@ -73,8 +73,6 @@
 
     protected override void OnInitialized()
     {
-        // No need to reinitialize since we already have "= new()" above
-        // But we can set default values if needed
         registrationPayload.PublicKey = "ThisIsATestPublicKey";
     }
 
@@ -85,7 +83,7 @@
             // Add loading state if needed
             isLoading = true;
 
-            regiResult = await MessagingService.RegisterUserAsync(registrationPayload);
+            regiResult = await messagingService.RegisterUserAsync(registrationPayload);
 
             if (regiResult == null)
             {
@@ -94,6 +92,9 @@
                         ErrorMessage = "No response received from the server. Please check your connection."
                     };
             }
+            //success case:
+            navigationManager.NavigateTo("/test");
+
         }
         catch (OperationCanceledException)
         {
@@ -125,30 +126,33 @@
     }
 
 
-
-
-
-    private IEnumerable<string> PasswordStrength(string pw)
+    private void NevigateToLogin()
     {
-        if (string.IsNullOrWhiteSpace(pw))
-        {
-            yield return "Password is required!";
-            yield break;
-        }
-        if (pw.Length < 8)
-            yield return "Password must be at least of length 8";
-        if (!Regex.IsMatch(pw, @"[A-Z]"))
-            yield return "Password must contain at least one capital letter";
-        if (!Regex.IsMatch(pw, @"[a-z]"))
-            yield return "Password must contain at least one lowercase letter";
-        if (!Regex.IsMatch(pw, @"[0-9]"))
-            yield return "Password must contain at least one digit";
+        navigationManager.NavigateTo("/login");
     }
 
-    private string PasswordMatch(string arg)
-    {
-        if (pwField1.Value != arg)
-            return "Passwords don't match";
-        return null;
-    }
+
+    // private IEnumerable<string> PasswordStrength(string pw)
+    // {
+    //     if (string.IsNullOrWhiteSpace(pw))
+    //     {
+    //         yield return "Password is required!";
+    //         yield break;
+    //     }
+    //     if (pw.Length < 8)
+    //         yield return "Password must be at least of length 8";
+    //     if (!Regex.IsMatch(pw, @"[A-Z]"))
+    //         yield return "Password must contain at least one capital letter";
+    //     if (!Regex.IsMatch(pw, @"[a-z]"))
+    //         yield return "Password must contain at least one lowercase letter";
+    //     if (!Regex.IsMatch(pw, @"[0-9]"))
+    //         yield return "Password must contain at least one digit";
+    // }
+
+    // private string PasswordMatch(string arg)
+    // {
+    //     if (pwField1.Value != arg)
+    //         return "Passwords don't match";
+    //     return null;
+    // }
 }

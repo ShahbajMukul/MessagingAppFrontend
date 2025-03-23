@@ -1,3 +1,4 @@
+using Blazored.LocalStorage;
 using MessagingApp.Shared.Services;
 using MessagingApp.Web.Components;
 using MudBlazor.Services;
@@ -12,6 +13,7 @@ builder.Services.AddRazorComponents()
 // builder.Services.AddSingleton<IFormFactor, FormFactor>();
 
 builder.Services.AddMudServices();
+builder.Services.AddBlazoredLocalStorage();
 
 builder.Services.AddScoped<MessagingService>();
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("http://localhost:5000/api/") });

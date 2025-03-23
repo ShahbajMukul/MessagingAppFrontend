@@ -1,4 +1,5 @@
-﻿using MessagingApp.Shared.Services;
+﻿using Blazored.LocalStorage;
+using MessagingApp.Shared.Services;
 using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 
@@ -20,9 +21,12 @@ namespace MessagingApp
             // builder.Services.AddSingleton<IFormFactor, FormFactor>();
 
             builder.Services.AddMudServices();
+            builder.Services.AddBlazoredLocalStorage();
+
 
             // BackendAPI
             builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("http://localhost:5000/api/") });
+            builder.Services.AddScoped<MessagingService>();
 
 
             builder.Services.AddMauiBlazorWebView();

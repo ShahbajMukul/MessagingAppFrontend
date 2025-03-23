@@ -9,6 +9,11 @@
 @using MudBlazor
 @using MessagingApp.Shared.Models
 @using MessagingApp.Shared.Models.Payload
+@using MessagingApp.Shared.Models.Payloads
 @using MessagingApp.Shared.Models.Results
 @using MessagingApp.Shared.Services
-@inject MessagingService MessagingService
+@inject MessagingService messagingService
+@inject NavigationManager navigationManager
+@inject Blazored.LocalStorage.ILocalStorageService localStorage
+@using System.Text.RegularExpressions
+

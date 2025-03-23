@@ -1,7 +1,9 @@
 ﻿using MessagingApp.Shared.Models.Payload;
+using MessagingApp.Shared.Models.Payloads;
 using MessagingApp.Shared.Models.Results;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http.Json;
 using System.Text;
@@ -21,9 +23,17 @@ namespace MessagingApp.Shared.Services
 
         public async Task<string> TestAsync()
         {
-            var response = await _httpClient.GetStringAsync("test");
-            Console.WriteLine(response);
-            return response;
+            try
+            {
+                var response = await _httpClient.GetStringAsync("test");
+                Console.WriteLine(response);
+                return response;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
+            return "";
         }
         public async Task<ApiResponse<RegistrationResult>> RegisterUserAsync(RegistrationPayload regiInfo)
         {
@@ -48,6 +58,40 @@ namespace MessagingApp.Shared.Services
                     StatusCode = response.StatusCode
                 };
                 return failureResult;
+            }
+        }
+
+        public async Task<ApiResponse<LoginResult>> LoginUserAsync(LoginPayload loginInfo)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync("login", loginInfo);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var data = await response.Content.ReadFromJsonAsync<LoginResult>();
+                    var successResult = new ApiResponse<LoginResult>
+                    {
+                        Data = data,
+                        StatusCode = response.StatusCode,
+                    };
+                    return successResult;
+                }
+                else
+                {
+                    var errorText = await response.Content.ReadAsStringAsync();
+                    var failureResult = new ApiResponse<LoginResult>
+                    {
+                        ErrorMessage = errorText ?? "Error processing request",
+                        StatusCode = response.StatusCode
+                    };
+                    return failureResult;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                return new ApiResponse<LoginResult> { ErrorMessage = "Error processing request" };
             }
         }
 

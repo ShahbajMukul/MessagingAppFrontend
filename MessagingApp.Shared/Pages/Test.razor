@@ -1,0 +1,37 @@
+﻿@page "/"
+@page "/test"
+
+<MudTextField Label="Saved Text" Variant="Variant.Outlined" @bind-Value="inpText"></MudTextField>
+<MudButton Variant="Variant.Filled" Color="Color.Secondary" @onclick="saveLocally">Save</MudButton>
+<br />
+<MudText>From local storage: @inpText</MudText>
+<br />
+<br />
+
+<h3>Working? -> @result</h3>
+
+
+@code {
+    private string result = "initial text";
+    private string inpText = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        result = await messagingService.TestAsync();
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+         if(firstRender)
+         {
+            inpText = await localStorage.GetItemAsync<string>("localInpText") ?? "No Saved Text Found";
+            StateHasChanged();
+
+         }
+    }
+    private async Task saveLocally()
+    {
+        await localStorage.SetItemAsStringAsync("localInpText", inpText);
+    }
+}

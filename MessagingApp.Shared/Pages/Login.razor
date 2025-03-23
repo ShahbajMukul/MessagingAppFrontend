@@ -1,0 +1,105 @@
+﻿@page "/login"
+@using MessagingApp.Shared.Models.Payloads
+@inject MessagingService MessagingService
+<PageTitle>MessagingApp</PageTitle>
+
+
+<div class="container d-flex justify-content-center align-items-center vh-100">
+    <div class="card p-4 shadow" style="width: 450px;">
+        <h3 class="card-title text-center mb-4">Nexus Messaging App Login</h3>
+        <EditForm Model="loginPayload" OnValidSubmit="LoginUser">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-error" />
+
+            @if (loginResult != null && !string.IsNullOrEmpty(loginResult.ErrorMessage))
+            {
+                <div class="alert alert-danger">@loginResult.ErrorMessage</div>
+            }
+
+            <div class="mb-3">
+                <label  class="form-label">Username</label>
+                <InputText class="form-control" @bind-Value="loginPayload.Username" />
+                <ValidationMessage For="@(() => loginPayload.Username)" />
+            </div>
+
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <InputText  class="form-control" type="password" @bind-Value="loginPayload.Password" />
+                <ValidationMessage For="@(() => loginPayload.Password)" />
+
+            </div>
+
+
+            <button type="submit" class="btn btn-primary w-100">Login</button>
+            <MudButton Color="Color.Secondary" OnClick="NevigateToRegister">Don't have an account? Register</MudButton>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private LoginPayload loginPayload = new();
+    private ApiResponse<LoginResult>? loginResult;
+    private bool isLoading = false;
+
+
+    protected override void OnInitialized()
+    {
+        // No need to reinitialize since we already have "= new()" above
+        // But we can set default values if needed
+        loginPayload.PublicKey = "ThisIsATestPublicKey";
+    }
+
+    private async Task LoginUser()
+    {
+        try
+        {
+            // Add loading state if needed
+            isLoading = true;
+
+            loginResult = await MessagingService.LoginUserAsync(loginPayload);
+
+            if (loginResult == null)
+            {
+                loginResult = new ApiResponse<LoginResult>
+                {
+                    ErrorMessage = "No response received from the server. Please check your connection."
+                };
+            }
+            // success case: 
+            navigationManager.NavigateTo("/test");
+        }
+        catch (OperationCanceledException)
+        {
+            loginResult = new ApiResponse<LoginResult>
+                {
+                    ErrorMessage = "The request timed out. Please try again later."
+                };
+        }
+        catch (HttpRequestException ex)
+        {
+            loginResult = new ApiResponse<LoginResult>
+                {
+                    ErrorMessage = $"Network error: {ex.Message}"
+                };
+        }
+        catch (Exception ex)
+        {
+            // Handle any unexpected exceptions
+            loginResult = new ApiResponse<LoginResult>
+                {
+                    ErrorMessage = $"An unexpected error occurred: {ex.Message}"
+                };
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged(); // Ensure UI updates after the async operation
+        }
+    }
+
+
+    private void NevigateToRegister()
+    {
+        navigationManager.NavigateTo("/register");
+    }
+}
