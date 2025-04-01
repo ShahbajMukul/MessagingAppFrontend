@@ -1,0 +1,232 @@
+﻿@* Components/ContactsPanel.razor *@
+@inject IDialogService DialogService
+@* @inject ContactService contactService // Assuming a service to manage contacts *@
+<MudPaper Class="pa-2" Elevation="0">
+    @* Temporarily move TextField outside Toolbar *@
+    <MudToolBar Dense="true">
+        <MudTextField @ref="_searchTextField"
+                      Value="_searchTerm"
+                  ValueChanged="@(async (string newSearchTerm) => OnSearchTermChanged(newSearchTerm))"
+                      Placeholder="Search or Add contact..."
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      DebounceInterval="300"
+                      Clearable="true"
+                      Immediate="true" /> @* Try adding Immediate for faster Clearable updates *@
+
+        @* Add the regular Add button back - we'll hide it conditionally later if needed, but maybe keep both? Or replace? Let's replace for now. *@
+        @* <MudIconButton Icon="@Icons.Material.Filled.AddComment" Title="Add Contact Manually" OnClick="OpenAddContactDialog" Class="ml-2" /> *@
+    </MudToolBar>
+
+    <MudDivider Class="my-2" />
+
+    @if (_isLoadingExternal)
+    {
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-4" />
+    }
+
+    @* --- Display Area: Switches between Local Results, External Prompt/Results --- *@
+    else
+    {
+        @* --- Case 1: Show Prompt/Button for External Search/Add --- *@
+        @if (_showExternalSearchOption)
+        {
+            <div class="d-flex flex-column align-center my-4">
+                <MudText Typo="Typo.body1">No local contact found for "@_searchTerm".</MudText>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search" @* Or Icons.Material.Filled.Add *@
+                           OnClick="HandleExternalSearchOrAddClick"
+                           Class="mt-2">
+                    Search/Add "@_searchTerm"
+                </MudButton>
+
+                @* --- Display External Search Results (if any) --- *@
+                @if (_externalSearchResults?.Any() == true)
+                {
+                    <MudText Typo="Typo.h6" Class="mt-4">External Results:</MudText>
+                    <MudList Clickable="true" Dense="true" T="Contact" Class="mt-2" Style="width: 100%;">
+                        @foreach (var contact in _externalSearchResults)
+                        {
+                            <MudListItem OnClick="@(() => SelectExternalContact(contact))">
+                                <MudAvatar Color="Color.Secondary" Size="Size.Medium">@GetInitials(contact.DisplayName)</MudAvatar>
+                                <MudText Class="ml-3">@contact.DisplayName</MudText>
+                                <MudText Typo="Typo.caption" Class="ml-auto"> (External)</MudText>
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+                else if (_externalSearchAttempted) // Show message if external search ran but found nothing
+                {
+                    <MudText Typo="Typo.body2" Class="mt-3">No external results found either.</MudText>
+                }
+            </div>
+        }
+        @* --- Case 2: Show Local Filtered Results (Default) --- *@
+        else if (_filteredContacts == null)
+        {
+            @* Only show loading on initial load, not during filtering normally *@
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-4" />
+        }
+        else if (!_filteredContacts.Any() && string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            <MudText Align="Align.Center" Color="Color.Info" Class="my-4">Search for contacts above.</MudText>
+        }
+        else if (_filteredContacts.Any()) // Only show list if there are local results
+        {
+            <MudList Clickable="true" Dense="true" T="Contact">
+                @foreach (var contact in _filteredContacts)
+                {
+                    @* We'll add back selection highlighting later *@
+                    <MudListItem OnClick="@(() => SelectLocalContact(contact))">
+                        <MudAvatar Color="Color.Primary" Size="Size.Medium">@GetInitials(contact.DisplayName)</MudAvatar>
+                        <MudText Class="ml-3">@contact.DisplayName</MudText>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+        @* Implicitly handles: No local results AND empty search term (shows nothing or the initial message) *@
+
+    }
+    </MudPaper>
+
+@code {
+    [Parameter] public EventCallback<Contact> OnContactSelected { get; set; }
+    [Parameter] public Contact? SelectedContact { get; set; } // Pass currently selected contact for styling
+
+    private string _searchTerm = string.Empty;
+    private List<Contact>? _allContacts;
+    private List<Contact>? _filteredContacts;
+    private MudTextField<string> _searchTextField = default!; // Ref for text field
+                                                              // --- State for External Search ---
+        private bool _showExternalSearchOption = false;
+        private bool _isLoadingExternal = false;
+        private bool _externalSearchAttempted = false; // Track if the button was clicked
+        private List<Contact>? _externalSearchResults;
+        // ---------------------------------
+        protected override async Task OnInitializedAsync()
+        {
+        await Task.Delay(10); // Simulate load
+        _allContacts = new List<Contact>() {
+        new Contact { UserId= "1", DisplayName = "Ally Test" }, // Added space back
+        new Contact { UserId= "2",  DisplayName = "Jake Test" },
+        new Contact { UserId= "3",  DisplayName = "Case Test" }
+        };
+        FilterContacts(); // Initial filter
+        }
+
+
+
+    // ADD BACK: Handler for search term changes
+    private void OnSearchTermChanged(string newSearchTerm)
+    {
+        if (_searchTerm != newSearchTerm)
+        {
+            _searchTerm = newSearchTerm;
+            FilterContacts(); // Filter when search term changes after debounce
+        }
+    }
+
+    // ADD BACK: Filtering logic
+        private void FilterContacts()
+        {
+        // Reset external search state whenever local filter runs
+        _externalSearchResults = null;
+        _showExternalSearchOption = false;
+        _isLoadingExternal = false; // Ensure loading is off
+        _externalSearchAttempted = false;
+
+        if (_allContacts == null)
+        {
+            _filteredContacts = null;
+            StateHasChanged(); // Update UI
+            return;
+        }
+
+        List<Contact> currentlyFiltered;
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            currentlyFiltered = _allContacts.OrderBy(c => c.DisplayName).ToList();
+            _showExternalSearchOption = false; // No external search if input is empty
+        }
+        else
+        {
+            currentlyFiltered = _allContacts
+            .Where(c => c.DisplayName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(c => c.DisplayName)
+            .ToList();
+
+            // *** Key Logic: Show external option if local search finds nothing AND search term exists ***
+            if (!currentlyFiltered.Any())
+            {
+                _showExternalSearchOption = true;
+            }
+        }
+
+        _filteredContacts = currentlyFiltered;
+        StateHasChanged(); // Update UI after filtering
+        }
+
+        private async Task HandleExternalSearchOrAddClick()
+        {
+        _isLoadingExternal = true;
+        _externalSearchResults = null; // Clear previous results
+        _externalSearchAttempted = true; // Mark that we tried
+        StateHasChanged(); // Show loader
+
+        // --- !!! MOCK API CALL !!! ---
+        // Replace this with your actual API call logic
+        await Task.Delay(1500); // Simulate network latency
+        var mockResults = new List<Contact>();
+        // Simulate finding some external contacts based on the search term
+        if (_searchTerm.Contains("api", StringComparison.OrdinalIgnoreCase))
+        {
+            mockResults.Add(new Contact { DisplayName = $"{_searchTerm} (API Result 1)", IsExternal = true });
+            mockResults.Add(new Contact { DisplayName = $"Another API Contact for {_searchTerm}", IsExternal = true });
+        }
+        else if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            // Simulate finding the exact match externally if not found locally
+            // Or just add the typed name as a potential new contact
+            mockResults.Add(new Contact { DisplayName = $"{_searchTerm} (External)", IsExternal = true });
+        }
+        // Simulate finding nothing
+        // else { mockResults = new List<Contact>(); }
+
+        _externalSearchResults = mockResults;
+        // --- !!! END MOCK API CALL !!! ---
+
+        _isLoadingExternal = false;
+        StateHasChanged(); // Hide loader, show results (or lack thereof)
+        }
+
+        private async Task SelectLocalContact(Contact contact)
+        {
+        Console.WriteLine($"Local Contact Selected: {contact.DisplayName}");
+        await OnContactSelected.InvokeAsync(contact);
+        // Add selection highlighting logic later
+        }
+
+        private async Task SelectExternalContact(Contact contact)
+        {
+        Console.WriteLine($"External Contact Selected: {contact.DisplayName}");
+        // Decide what happens - maybe add it to local contacts first?
+        // For now, just invoke the main handler
+        await OnContactSelected.InvokeAsync(contact);
+        }
+
+        // Add back GetInitials (ensure it handles potential null/empty strings)
+        private string GetInitials(string? name)
+        {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return "?";
+        if (parts.Length >= 2)
+        {
+            return $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant();
+        }
+        return $"{parts[0][0]}".ToUpperInvariant();
+        }
+}

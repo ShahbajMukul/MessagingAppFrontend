@@ -27,6 +27,7 @@ namespace MessagingApp.Shared.Models.Payload
         [Required(ErrorMessage = "Password is required")]
         public string Password { get; set; }
 
+        [Required(ErrorMessage ="Failed to generate the RSA keys. System may not be supported. Please download our software")]
         public string PublicKey { get; set; }
     }
 }

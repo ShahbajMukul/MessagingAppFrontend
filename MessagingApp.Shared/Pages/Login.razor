@@ -6,7 +6,8 @@
 
 <div class="container d-flex justify-content-center align-items-center vh-100">
     <div class="card p-4 shadow" style="width: 450px;">
-        <h3 class="card-title text-center mb-4">Nexus Messaging App Login</h3>
+        <MudText Typo="Typo.h1" Color="Color.Primary" Class="text-center mb-4">NEXUS</MudText>
+            <MudText Typo="Typo.subtitle1" Class="text-center">Secure End-to-End Encrypted Messaging</MudText>
         <EditForm Model="loginPayload" OnValidSubmit="LoginUser">
             <DataAnnotationsValidator />
             <ValidationSummary class="text-error" />
@@ -38,7 +39,7 @@
 
 @code {
     private LoginPayload loginPayload = new();
-    private ApiResponse<LoginResult>? loginResult;
+    private ApiResponse<RegiLoginResult>? loginResult;
     private bool isLoading = false;
 
 
@@ -46,11 +47,13 @@
     {
         // No need to reinitialize since we already have "= new()" above
         // But we can set default values if needed
-        loginPayload.PublicKey = "ThisIsATestPublicKey";
+        // loginPayload.PublicKey = "ThisIsATestPublicKey";
+        cryptographyService.GenerateKeysAsync();
     }
 
     private async Task LoginUser()
     {
+        loginPayload.PublicKey = cryptographyService.PublicKey.ToString() ?? throw new ArgumentNullException();
         try
         {
             // Add loading state if needed
@@ -58,26 +61,27 @@
 
             loginResult = await MessagingService.LoginUserAsync(loginPayload);
 
-            if (loginResult == null)
+            if (loginResult == null || loginResult.Data == null)
             {
-                loginResult = new ApiResponse<LoginResult>
+                loginResult = new ApiResponse<RegiLoginResult>
                 {
                     ErrorMessage = "No response received from the server. Please check your connection."
                 };
             }
             // success case: 
+            await SaveUserData(loginResult.Data);
             navigationManager.NavigateTo("/test");
         }
         catch (OperationCanceledException)
         {
-            loginResult = new ApiResponse<LoginResult>
+            loginResult = new ApiResponse<RegiLoginResult>
                 {
                     ErrorMessage = "The request timed out. Please try again later."
                 };
         }
         catch (HttpRequestException ex)
         {
-            loginResult = new ApiResponse<LoginResult>
+            loginResult = new ApiResponse<RegiLoginResult>
                 {
                     ErrorMessage = $"Network error: {ex.Message}"
                 };
@@ -85,7 +89,7 @@
         catch (Exception ex)
         {
             // Handle any unexpected exceptions
-            loginResult = new ApiResponse<LoginResult>
+            loginResult = new ApiResponse<RegiLoginResult>
                 {
                     ErrorMessage = $"An unexpected error occurred: {ex.Message}"
                 };
@@ -97,6 +101,15 @@
         }
     }
 
+
+    private async Task SaveUserData(RegiLoginResult data)
+    {
+        await localStorage.SetItemAsync<RegiLoginResult>("UserData", data);
+
+        // encrypt these later
+        await localStorage.SetItemAsync<string>("PublicKey", cryptographyService.PublicKey.ToString());
+        await localStorage.SetItemAsync<string>("PrivateKey", cryptographyService.PrivateKey.ToString());
+    }
 
     private void NevigateToRegister()
     {

@@ -1,6 +1,9 @@
 ﻿@page "/"
 @page "/test"
 
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+
 <MudTextField Label="Saved Text" Variant="Variant.Outlined" @bind-Value="inpText"></MudTextField>
 <MudButton Variant="Variant.Filled" Color="Color.Secondary" @onclick="saveLocally">Save</MudButton>
 <br />
@@ -9,26 +12,174 @@
 <br />
 
 <h3>Working? -> @result</h3>
+<br />
+@if (rlResult != null)
+{
+    <MudText>UserID: @rlResult.UserID </MudText>
+    <MudText>Token: @rlResult.Token</MudText>
+    <MudText>Username: @rlResult.Username</MudText>
+    <MudText>FirstName: @rlResult.FirstName</MudText>
+    <MudText>LastName: @rlResult.LastName</MudText>
+    <MudText>Email: @rlResult.Email</MudText>
+}
+
+
+
+
+<MudText>privKey: @privKey</MudText>
+<MudText>pubKey: @pubKey</MudText>
+
+<h3>Contacts with Search</h3>
+
+@* ADD BACK: Toolbar and Search Field *@
+<MudPaper Class="pa-2" Elevation="0">
+    @* Temporarily move TextField outside Toolbar *@
+    <MudTextField Value="_searchTerm"
+                  ValueChanged="@(async (string newSearchTerm) => OnSearchTermChanged(newSearchTerm))"
+                  Placeholder="Search contacts..."
+                  Variant="Variant.Outlined"
+                  Margin="Margin.Dense"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  DebounceInterval="300"
+                  Clearable="true" />
+
+    <MudToolBar Dense="true">
+         @* Toolbar is now empty or just has Add button later *@
+    </MudToolBar>
+
+    <MudDivider Class="my-2" />
+
+@* CHANGE: Condition now checks _filteredContacts *@
+@if (_filteredContacts == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!_filteredContacts.Any())
+{
+    <p><em>No contacts found matching "@_searchTerm".</em></p> @* Improved message *@
+}
+else
+{
+    <MudList Dense="true" T="Contact">
+        @* CHANGE: Loop over _filteredContacts *@
+        @foreach (var contact in _filteredContacts)
+        {
+            <MudListItem>
+                @contact.DisplayName
+            </MudListItem>
+        }
+    </MudList>
+}
+</MudPaper>
+@code {
+    // ADD BACK: Search term field
+    private string _searchTerm = string.Empty;
+
+    // CHANGE: Keep the original list separate
+    private List<Contact>? _allContacts;
+    // ADD BACK: Filtered list for display
+    private List<Contact>? _filteredContacts;
+
+    public class Contact
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.Delay(10);
+
+        // Populate the original list
+        _allContacts = new List<Contact>()
+        {
+            new Contact { UserId = "1", DisplayName = "AllyTest" },
+            new Contact { UserId = "2", DisplayName = "JakeTest" },
+            new Contact { UserId = "3", DisplayName = "CaseTest" },
+             // Add back one with space for testing filtering later if needed
+            new Contact { UserId = "4", DisplayName = "David Jones" }
+        };
+
+        // ADD BACK: Initial call to filter
+        FilterContacts();
+    }
+
+
+
+    // ADD BACK: Handler for search term changes
+    private void OnSearchTermChanged(string newSearchTerm)
+    {
+        if (_searchTerm != newSearchTerm)
+        {
+            _searchTerm = newSearchTerm;
+            FilterContacts(); // Filter when search term changes after debounce
+        }
+    }
+
+    // ADD BACK: Filtering logic
+    private void FilterContacts()
+    {
+        try // <--- ADD TRY
+        {
+            if (_allContacts == null)
+            {
+                _filteredContacts = null;
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                _filteredContacts = _allContacts.OrderBy(c => c.DisplayName).ToList();
+            }
+            else
+            {
+                _filteredContacts = _allContacts
+                    .Where(c => c.DisplayName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(c => c.DisplayName)
+                    .ToList();
+            }
+        }
+        catch (Exception ex) // <--- ADD CATCH
+        {
+            Console.WriteLine($"Error during filtering: {ex}");
+            _filteredContacts = new List<Contact>(); // Set to empty on error
+        }
+        finally // <--- ADD FINALLY (Optional but ensures StateHasChanged runs)
+        {
+            StateHasChanged(); // Ensure UI update attempt even if filter logic had issues
+        }
+    }
+}
 
 
 @code {
     private string result = "initial text";
     private string inpText = string.Empty;
 
-    protected override async Task OnInitializedAsync()
-    {
-        result = await messagingService.TestAsync();
-        StateHasChanged();
-    }
+    // test
+    private RegiLoginResult? rlResult;
+    private string privKey;
+    private string pubKey;
+
+    // protected override async Task OnInitializedAsync()
+    // {
+    //     result = await messagingService.TestAsync();
+    // }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-         if(firstRender)
-         {
+        if (firstRender)
+        {
+            // Load ALL initial data from localStorage here
             inpText = await localStorage.GetItemAsync<string>("localInpText") ?? "No Saved Text Found";
-            StateHasChanged();
+            rlResult = await localStorage.GetItemAsync<RegiLoginResult>("UserData");
+            privKey = await localStorage.GetItemAsStringAsync("PrivateKey") ?? string.Empty; // Use string.Empty for consistency
+            pubKey = await localStorage.GetItemAsStringAsync("PublicKey") ?? string.Empty;
 
-         }
+            // Tell Blazor to re-render ONLY IF data loaded AFTER the first paint needs to be displayed
+            StateHasChanged();
+        }
     }
     private async Task saveLocally()
     {

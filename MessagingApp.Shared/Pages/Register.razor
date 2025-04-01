@@ -1,111 +1,135 @@
 ﻿@page "/register"
 @using System.Text.RegularExpressions
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
-@inject MessagingService MessagingService
-<PageTitle>MessagingApp</PageTitle>
+@inject MessagingService messagingService // Corrected injection name
+@inject CryptographyService cryptographyService // Inject CryptographyService
+@inject NavigationManager navigationManager // Inject NavigationManager
+@inject Blazored.LocalStorage.ILocalStorageService localStorage // Inject LocalStorage
 
+<PageTitle>MessagingApp - Register</PageTitle>
 
+@* ... (Keep your existing HTML structure: container, card, MudText, EditForm etc.) ... *@
 <div class="container d-flex justify-content-center align-items-center vh-100">
     <div class="card p-4 shadow" style="width: 450px;">
-        <h3 class="card-title text-center mb-4">Nexus Messaging App Registration</h3>
-        <EditForm Model="registrationPayload" OnValidSubmit="RegisterUser">
+        @* ... Header ... *@
+        <MudText Typo="Typo.h1" Color="Color.Primary" Class="text-center mb-4">NEXUS</MudText>
+        <MudText Typo="Typo.subtitle1" Class="text-center">Secure End-to-End Encrypted Messaging</MudText>
+        <EditForm Model="registrationPayload" FormName="RegistrationForm" OnValidSubmit="RegisterUser">
             <DataAnnotationsValidator />
-            <ValidationSummary class="text-error" />
+            <ValidationSummary class="text-danger" /> @* Use text-danger for Bootstrap styling *@
 
-            @if (regiResult != null && !string.IsNullOrEmpty(regiResult.ErrorMessage))
+            @if (!string.IsNullOrEmpty(registrationErrorMessage)) // Display specific error message
             {
-                <div class="alert alert-danger">@regiResult.ErrorMessage</div>
+                <div class="alert alert-danger">@registrationErrorMessage</div>
             }
-            @* <div class="mb-3">
-                <div class="text-muted">
-                    If you're a student, login with student number. If you're a committee member,
-                    login with committee member ID.
+            @if (isLoading)
+            {
+                <div class="text-center my-2">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                    <MudText>Registering...</MudText>
                 </div>
+            }
 
-            </div> *@
+            @* ... Input Fields (InputText, ValidationMessage etc.) - Keep as they are ... *@
             <div class="mb-3">
                 <label class="form-label">First Name</label>
-                <InputText  class="form-control" @bind-Value="registrationPayload.FirstName" />
+                <InputText class="form-control" @bind-Value="registrationPayload.FirstName" />
                 <ValidationMessage For="@(() => registrationPayload.FirstName)" />
             </div>
             <div class="mb-3">
                 <label class="form-label">Last Name</label>
-                <InputText  class="form-control" @bind-Value="registrationPayload.LastName" />
+                <InputText class="form-control" @bind-Value="registrationPayload.LastName" />
                 <ValidationMessage For="@(() => registrationPayload.LastName)" />
             </div>
             <div class="mb-3">
-                <label  class="form-label">Username</label>
+                <label class="form-label">Username</label>
                 <InputText class="form-control" @bind-Value="registrationPayload.Username" />
                 <ValidationMessage For="@(() => registrationPayload.Username)" />
             </div>
             <div class="mb-3">
                 <label for="email" class="form-label">Email</label>
-                <InputText  class="form-control" @bind-Value="registrationPayload.Email" />
+                <InputText class="form-control" @bind-Value="registrationPayload.Email" />
                 <ValidationMessage For="@(() => registrationPayload.Email)" />
             </div>
-
             <div class="mb-3">
                 <label for="password" class="form-label">Password</label>
-                <InputText  class="form-control" type="password" @bind-Value="registrationPayload.Password" />
-                @* <MudTextField @bind-Value="registrationPayload.Password" Label="Password" Variant="Variant.Text" InputType="@InputType.Password" Adornment="Adornment.End" AdornmentIcon="@registrationPayload.Password" AdornmentAriaLabel="Show Password" /> *@
+                <InputText class="form-control" type="password" @bind-Value="registrationPayload.Password" />
                 <ValidationMessage For="@(() => registrationPayload.Password)" />
-
             </div>
-            @* <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <MudTextField T="string"
-                              HelperText="Repeat the password" InputType="InputType.Password"
-                              Validation="@(new Func<string, string>(PasswordMatch))" />
-            </div> *@
 
-
-            <button type="submit" class="btn btn-primary w-100">Register</button>
-            <MudButton Color="Color.Secondary" OnClick="NevigateToLogin">Already have an account? Login</MudButton>
+            <button type="submit" class="btn btn-primary w-100 mb-2" disabled="@isLoading">Register</button>
+            <MudButton FullWidth="true" Color="Color.Secondary" OnClick="NevigateToLogin" Disabled="@isLoading">Already have an account? Login</MudButton>
         </EditForm>
     </div>
 </div>
 
 @code {
     private RegistrationPayload registrationPayload = new();
-    private ApiResponse<RegistrationResult>? regiResult;
+    private ApiResponse<RegiLoginResult>? regiResult;
+    private string? registrationErrorMessage = string.Empty; // Store only the error message string
     private bool isLoading = false;
-    MudTextField<string> pwField1;
+    // MudTextField<string> pwField1;
 
-    protected override void OnInitialized()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        registrationPayload.PublicKey = "ThisIsATestPublicKey";
+        if (firstRender)
+        {
+            try
+            {
+                // Generate keys AFTER the first render on the client
+                await cryptographyService.GenerateKeysAsync();
+                // You might want to update the UI or state if needed here
+                // For registration, maybe not critical until submission
+                // StateHasChanged(); // Only if UI depends on keys immediately
+            }
+            catch (JSException ex)
+            {
+                // Specific catch for JS interop errors
+                registrationErrorMessage = $"Error initializing cryptography: {ex.Message}. Ensure crypto JS file is loaded.";
+                StateHasChanged(); // Update UI to show this critical error
+            }
+            catch (Exception ex)
+            {
+                // Catch other potential errors during key generation
+                registrationErrorMessage = $"An unexpected error occurred during initialization: {ex.Message}";
+                StateHasChanged(); // Update UI
+            }
+        }
     }
+
 
     private async Task RegisterUser()
     {
+        registrationPayload.PublicKey = cryptographyService.PublicKeyString;
         try
         {
-            // Add loading state if needed
             isLoading = true;
 
             regiResult = await messagingService.RegisterUserAsync(registrationPayload);
 
-            if (regiResult == null)
+            if (regiResult == null || regiResult.Data == null)
             {
-                regiResult = new ApiResponse<RegistrationResult>
+                regiResult = new ApiResponse<RegiLoginResult>
                     {
                         ErrorMessage = "No response received from the server. Please check your connection."
                     };
             }
             //success case:
+            await SaveUserInfo(regiResult.Data);
             navigationManager.NavigateTo("/test");
 
         }
         catch (OperationCanceledException)
         {
-            regiResult = new ApiResponse<RegistrationResult>
+            regiResult = new ApiResponse<RegiLoginResult>
                 {
                     ErrorMessage = "The request timed out. Please try again later."
                 };
         }
         catch (HttpRequestException ex)
         {
-            regiResult = new ApiResponse<RegistrationResult>
+            regiResult = new ApiResponse<RegiLoginResult>
                 {
                     ErrorMessage = $"Network error: {ex.Message}"
                 };
@@ -113,7 +137,7 @@
         catch (Exception ex)
         {
             // Handle any unexpected exceptions
-            regiResult = new ApiResponse<RegistrationResult>
+            regiResult = new ApiResponse<RegiLoginResult>
                 {
                     ErrorMessage = $"An unexpected error occurred: {ex.Message}"
                 };
@@ -125,6 +149,13 @@
         }
     }
 
+    private async Task SaveUserInfo(RegiLoginResult data)
+    {
+        await localStorage.SetItemAsync<RegiLoginResult>("UserData", data);
+        // encrypt these later
+        await localStorage.SetItemAsync<string>("PublicKey", cryptographyService.PublicKeyString ?? throw new ArgumentNullException());
+        await localStorage.SetItemAsync<string>("PrivateKey", cryptographyService.PrivateKeyString ?? throw new ArgumentNullException());
+    }
 
     private void NevigateToLogin()
     {

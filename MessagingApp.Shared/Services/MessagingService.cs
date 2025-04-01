@@ -35,14 +35,14 @@ namespace MessagingApp.Shared.Services
             }
             return "";
         }
-        public async Task<ApiResponse<RegistrationResult>> RegisterUserAsync(RegistrationPayload regiInfo)
+        public async Task<ApiResponse<RegiLoginResult>> RegisterUserAsync(RegistrationPayload regiInfo)
         {
             var response = await _httpClient.PostAsJsonAsync("register", regiInfo);
 
             if (response.IsSuccessStatusCode)
             {
-                var data = await response.Content.ReadFromJsonAsync<RegistrationResult>();
-                var successResult = new ApiResponse<RegistrationResult>
+                var data = await response.Content.ReadFromJsonAsync<RegiLoginResult>();
+                var successResult = new ApiResponse<RegiLoginResult>
                 {
                     Data = data,
                     StatusCode = response.StatusCode
@@ -52,7 +52,7 @@ namespace MessagingApp.Shared.Services
             else
             {
                 var errorText = await response.Content.ReadAsStringAsync();
-                var failureResult = new ApiResponse<RegistrationResult>
+                var failureResult = new ApiResponse<RegiLoginResult>
                 {
                     ErrorMessage = errorText,
                     StatusCode = response.StatusCode
@@ -61,7 +61,7 @@ namespace MessagingApp.Shared.Services
             }
         }
 
-        public async Task<ApiResponse<LoginResult>> LoginUserAsync(LoginPayload loginInfo)
+        public async Task<ApiResponse<RegiLoginResult>> LoginUserAsync(LoginPayload loginInfo)
         {
             try
             {
@@ -69,8 +69,8 @@ namespace MessagingApp.Shared.Services
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var data = await response.Content.ReadFromJsonAsync<LoginResult>();
-                    var successResult = new ApiResponse<LoginResult>
+                    var data = await response.Content.ReadFromJsonAsync<RegiLoginResult>();
+                    var successResult = new ApiResponse<RegiLoginResult>
                     {
                         Data = data,
                         StatusCode = response.StatusCode,
@@ -80,7 +80,7 @@ namespace MessagingApp.Shared.Services
                 else
                 {
                     var errorText = await response.Content.ReadAsStringAsync();
-                    var failureResult = new ApiResponse<LoginResult>
+                    var failureResult = new ApiResponse<RegiLoginResult>
                     {
                         ErrorMessage = errorText ?? "Error processing request",
                         StatusCode = response.StatusCode
@@ -91,7 +91,7 @@ namespace MessagingApp.Shared.Services
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
-                return new ApiResponse<LoginResult> { ErrorMessage = "Error processing request" };
+                return new ApiResponse<RegiLoginResult> { ErrorMessage = "Error processing request" };
             }
         }
 

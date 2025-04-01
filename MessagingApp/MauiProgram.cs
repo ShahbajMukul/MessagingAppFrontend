@@ -27,6 +27,7 @@ namespace MessagingApp
             // BackendAPI
             builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("http://localhost:5000/api/") });
             builder.Services.AddScoped<MessagingService>();
+            builder.Services.AddSingleton<CryptographyService>();
 
 
             builder.Services.AddMauiBlazorWebView();

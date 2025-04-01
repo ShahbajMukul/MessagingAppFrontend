@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace MessagingApp.Shared.Models.Results
 {
-    public class RegistrationResult : UserInfo
+    public class RegiLoginResult : UserInfo
     {
         public required string Token { get; init; }
     }

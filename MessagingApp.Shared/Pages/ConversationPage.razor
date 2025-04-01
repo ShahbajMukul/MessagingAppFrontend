@@ -1,0 +1,212 @@
+﻿@page "/conversation/{ContactId}"
+@* Inject services later if needed for real data *@
+
+@if (_contact == null || _isLoading)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudPaper Elevation="0" Class="d-flex flex-column" Style="height: calc(100vh - 64px); ">
+        @* Adjust 64px based on your main layout's app bar height *@
+
+        @* --- Header --- *@
+        @* <MudAppBar Elevation="1" Dense="true" Class="pa-2">
+            <MudStack AlignItems="AlignItems.Center">
+                <MudAvatar Color="Color.Primary" Size="Size.Medium">@GetInitials(_contact.DisplayName)</MudAvatar>
+                <MudText Typo="Typo.h6" Align="Align.Center">@_contact.DisplayName</MudText>
+                <MudText Typo="Typo.caption" Align="Align.Center" Color="Color.Success">Active now</MudText> 
+            </MudStack>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.MoreVert" />
+        </MudAppBar> *@
+
+        @* --- Chat Area (Scrollable) --- *@
+        <MudPaper Elevation="0" Class="flex-grow-1 pa-2" Style="overflow-y: auto;">
+            @if (_messages == null || !_messages.Any())
+            {
+                <MudText Align="Align.Center">No messages yet.</MudText>
+            }
+            else
+            {
+                @foreach (var message in _messages.OrderBy(m => m.SentTime)) @* Ensure messages are ordered *@
+                {
+                    <MudChat ChatPosition="@GetBubblePosition(message.SenderUserID)">
+                        <MudChatHeader Name="@(message.SenderUserID == _currentUserId ? "" : "Give Name")" Time="@message.SentTime.ToString("MM/dd HH:mm tt")" />
+                       @if(message.SenderUserID != _currentUserId)
+                       {
+                        <MudAvatar Size="@Size.Small">
+                            @GetInitials(message.SenderUserID.ToString())
+                        </MudAvatar>
+                       }
+                        <MudChatBubble Color="@(message.SenderUserID == _currentUserId ? Color.Primary : Color.Default)">
+                            @message.Content
+                            @* <br />
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="flex-grow: 1;"></div> <MudText Typo="Typo.caption" Style="font-size: 0.5rem;">@message.SentTime.ToString("MM/dd HH:mm tt")</MudText>
+                            </div> *@
+                        </MudChatBubble>
+                    </MudChat>
+                }
+                @* Add a dummy element to help scroll to bottom later if needed *@
+                <div id="scrollTarget"></div>
+            }
+        </MudPaper>
+
+        @* --- Input Area --- *@
+        <MudPaper Elevation="2" Class="pa-2">
+            <MudStack Row="true" AlignItems="AlignItems.Center">
+                <MudTextField @bind-Value="_newMessageContent"
+                              Placeholder="Type a message..."
+                              Variant="Variant.Outlined"
+                              Lines="1"
+                              Class="flex-grow-1"
+                              Adornment="Adornment.End"
+                              OnKeyDown="HandleInputKeyDown" />
+                <MudIconButton Icon="@Icons.Material.Filled.Send"
+                               Color="Color.Primary"
+                               OnClick="SendMessageAsync"
+                               Disabled="string.IsNullOrWhiteSpace(_newMessageContent)"
+                               Class="ml-2" />
+            </MudStack>
+        </MudPaper>
+
+    </MudPaper>
+}
+
+
+@code {
+    [Parameter] public string ContactId { get; set; } = string.Empty;
+
+    // --- Mock Data ---
+    private Contact? _contact;
+    private List<Message>? _messages;
+    private bool _isLoading = true;
+
+    // Mock the currently logged-in user's ID
+    private int _currentUserId = 2; // Assign a distinct ID for the current user
+
+    private string _newMessageContent = string.Empty;
+
+    // Contact definition (can be moved to a shared model)
+    public class Contact
+    {
+        public int UserId { get; set; }
+        public string DisplayName { get; set; } = string.Empty;
+    }
+
+    // Message definition (matches your provided class)
+    public class Message
+    {
+        public int MessageID { get; set; }
+        public int ConversationID { get; set; } // Assume we filter by this or participant IDs
+        public string Content { get; set; } = string.Empty;
+        public string EncryptedKey { get; set; } = string.Empty;
+        public int SenderUserID { get; set; }
+        public DateTime SentTime { get; set; }
+        public bool IsRead { get; set; }
+        public string IV { get; set; } = string.Empty;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isLoading = true;
+        // --- Simulate loading data based on ContactId ---
+        await Task.Delay(500); // Simulate network/DB delay
+
+        // Find or create mock contact
+        // In a real app, you'd fetch this from a service using ContactId
+        _contact = GetMockContact(int.Parse(ContactId)); // Assuming ContactId is parsable to int
+
+        // Generate mock messages for this conversation
+        _messages = GenerateMockMessages(_currentUserId, _contact?.UserId ?? 0); // Pass both user IDs
+
+        _isLoading = false;
+        // StateHasChanged(); // Not strictly needed here, Blazor handles it after async completion
+
+        // TODO: Scroll to bottom after loading messages
+        // await Task.Delay(50); // Give render time
+        // await JSRuntime.InvokeVoidAsync("scrollToElement", "scrollTarget"); // Requires JS function
+    }
+
+    private Contact GetMockContact(int userId)
+    {
+        // Mock contact lookup
+        var contacts = new List<Contact> {
+            new Contact { UserId = 1, DisplayName = "Anakin Skywalker" },
+            new Contact { UserId = 2, DisplayName = "Obi-Wan Kenobi" },
+            new Contact { UserId = 3, DisplayName = "Yoda" },
+            new Contact { UserId = _currentUserId, DisplayName = "Me" } // Just for lookup if needed
+        };
+        return contacts.FirstOrDefault(c => c.UserId == userId) ?? new Contact { UserId = userId, DisplayName = $"User {userId}" };
+    }
+
+    private List<Message> GenerateMockMessages(int currentUser, int otherUser)
+    {
+        // Simple mock data generation
+        var messageList = new List<Message>();
+        if (otherUser == 0) return messageList; // No contact to chat with
+
+        messageList.Add(new Message { MessageID = 1, ConversationID = 1, SenderUserID = otherUser, Content = "It's over Anakin", SentTime = DateTime.Now.AddMinutes(-5) });
+        messageList.Add(new Message { MessageID = 2, ConversationID = 1, SenderUserID = otherUser, Content = "I have the high ground.", SentTime = DateTime.Now.AddMinutes(-4.5) });
+        messageList.Add(new Message { MessageID = 3, ConversationID = 1, SenderUserID = currentUser, Content = "You underestimate my power!", SentTime = DateTime.Now.AddMinutes(-4) });
+        messageList.Add(new Message { MessageID = 4, ConversationID = 1, SenderUserID = otherUser, Content = "Don't try it.", SentTime = DateTime.Now.AddMinutes(-3.5) });
+        messageList.Add(new Message { MessageID = 5, ConversationID = 1, SenderUserID = currentUser, Content = "Ahhhhh!", SentTime = DateTime.Now.AddMinutes(-3) });
+        messageList.Add(new Message { MessageID = 6, ConversationID = 1, SenderUserID = otherUser, Content = "...", SentTime = DateTime.Now.AddMinutes(-1) });
+
+        return messageList;
+    }
+
+    private ChatBubblePosition GetBubblePosition(int senderId)
+    {
+        return senderId == _currentUserId ? ChatBubblePosition.End : ChatBubblePosition.Start;
+    }
+
+    private async Task HandleInputKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey) // Send on Enter, allow Shift+Enter for newline
+        {
+            await SendMessageAsync();
+        }
+    }
+
+    private async Task SendMessageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newMessageContent) || _messages == null) return;
+
+        var newMessage = new Message
+            {
+                MessageID = (_messages.Any() ? _messages.Max(m => m.MessageID) : 0) + 1, // Basic ID generation
+                ConversationID = 1, // Assuming a fixed conversation ID for mock
+                Content = _newMessageContent,
+                SenderUserID = _currentUserId,
+                SentTime = DateTime.Now,
+                IsRead = false, // Sent messages start as unread by recipient
+                EncryptedKey = "", // Handle encryption later
+                IV = ""
+            };
+
+        _messages.Add(newMessage);
+        _newMessageContent = string.Empty; // Clear input
+
+        // StateHasChanged(); // Let Blazor handle update triggered by collection change/event
+
+        // TODO: Call API to actually send the message
+        // TODO: Scroll to bottom after sending
+        await Task.Delay(50); // Give render time
+                              // await JSRuntime.InvokeVoidAsync("scrollToElement", "scrollTarget"); // Requires JS interop setup
+    }
+
+    // Helper for Avatar Initials
+    private string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return "?";
+        if (parts.Length >= 2)
+        {
+            return $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant();
+        }
+        return $"{parts[0][0]}".ToUpperInvariant();
+    }
+}
