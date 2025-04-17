@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\MessagingApp.Web.Client\MessagingApp.Web.Client.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.4" />
   </ItemGroup>
 
   <ItemGroup>

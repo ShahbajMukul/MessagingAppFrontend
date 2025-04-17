@@ -1,19 +1,18 @@
 ﻿@page "/register"
 @using System.Text.RegularExpressions
-@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
-
-@inject MessagingService messagingService // Corrected injection name
-@inject CryptographyService cryptographyService // Inject CryptographyService
-@inject NavigationManager navigationManager // Inject NavigationManager
-@inject Blazored.LocalStorage.ILocalStorageService localStorage // Inject LocalStorage
+@inject MessagingService messagingService 
+@inject CryptographyService cryptographyService 
+@inject NavigationManager navigationManager 
+@inject Blazored.LocalStorage.ILocalStorageService localStorages
 
 <PageTitle>MessagingApp - Register</PageTitle>
+
 
 @* ... (Keep your existing HTML structure: container, card, MudText, EditForm etc.) ... *@
 <div class="container d-flex justify-content-center align-items-center vh-100">
     <div class="card p-4 shadow" style="width: 450px;">
         @* ... Header ... *@
-        <MudText Typo="Typo.h1" Color="Color.Primary" Class="text-center mb-4">NEXUS</MudText>
+        <MudText Typo="Typo.h2" Color="Color.Primary" Class="text-center mb-4">NEXUS</MudText>
         <MudText Typo="Typo.subtitle1" Class="text-center">Secure End-to-End Encrypted Messaging</MudText>
         <EditForm Model="registrationPayload" FormName="RegistrationForm" OnValidSubmit="RegisterUser">
             <DataAnnotationsValidator />
@@ -58,45 +57,58 @@
                 <ValidationMessage For="@(() => registrationPayload.Password)" />
             </div>
 
-            <button type="submit" class="btn btn-primary w-100 mb-2" disabled="@isLoading">Register</button>
-            <MudButton FullWidth="true" Color="Color.Secondary" OnClick="NevigateToLogin" Disabled="@isLoading">Already have an account? Login</MudButton>
+@*             <button type="submit" class="btn btn-primary w-100 mb-2" disabled="@isLoading">Register</button> *@
+            <MudButton Class="btn btn-primary w-100 mb-2" ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Secondary" Disabled="@isLoading" @onclick="RegisterUser">Register</MudButton>
+            <MudButton FullWidth="true" Color="Color.Secondary" OnClick="@(() => GoTo("login"))" Disabled="@isLoading">Already have an account? Login</MudButton>
+
         </EditForm>
     </div>
 </div>
 
 @code {
+
+
+    private bool _open;
+
     private RegistrationPayload registrationPayload = new();
     private ApiResponse<RegiLoginResult>? regiResult;
     private string? registrationErrorMessage = string.Empty; // Store only the error message string
     private bool isLoading = false;
     // MudTextField<string> pwField1;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+
+    protected override async Task OnInitializedAsync()
     {
-        if (firstRender)
-        {
-            try
-            {
-                // Generate keys AFTER the first render on the client
-                await cryptographyService.GenerateKeysAsync();
-                // You might want to update the UI or state if needed here
-                // For registration, maybe not critical until submission
-                // StateHasChanged(); // Only if UI depends on keys immediately
-            }
-            catch (JSException ex)
-            {
-                // Specific catch for JS interop errors
-                registrationErrorMessage = $"Error initializing cryptography: {ex.Message}. Ensure crypto JS file is loaded.";
-                StateHasChanged(); // Update UI to show this critical error
-            }
-            catch (Exception ex)
-            {
-                // Catch other potential errors during key generation
-                registrationErrorMessage = $"An unexpected error occurred during initialization: {ex.Message}";
-                StateHasChanged(); // Update UI
-            }
-        }
+        await cryptographyService.GenerateKeysAsync();
     }
+
+    // protected override async Task OnAfterRenderAsync(bool firstRender)
+    // {
+    //     Console.WriteLine("page loaded");
+    //     if (firstRender)
+    //     {
+    //         try
+    //         {
+    //             // Generate keys AFTER the first render on the client
+    //             await cryptographyService.GenerateKeysAsync();
+    //             // You might want to update the UI or state if needed here
+    //             // For registration, maybe not critical until submission
+    //             // StateHasChanged(); // Only if UI depends on keys immediately
+    //         }
+    //         catch (JSException ex)
+    //         {
+    //             // Specific catch for JS interop errors
+    //             registrationErrorMessage = $"Error initializing cryptography: {ex.Message}. Ensure crypto JS file is loaded.";
+    //             StateHasChanged(); // Update UI to show this critical error
+    //         }
+    //         catch (Exception ex)
+    //         {
+    //             // Catch other potential errors during key generation
+    //             registrationErrorMessage = $"An unexpected error occurred during initialization: {ex.Message}";
+    //             StateHasChanged(); // Update UI
+    //         }
+    //     }
+    // }
 
 
     private async Task RegisterUser()
@@ -117,7 +129,7 @@
             }
             //success case:
             await SaveUserInfo(regiResult.Data);
-            navigationManager.NavigateTo("/test");
+            navigationManager.NavigateTo("/contacts");
 
         }
         catch (OperationCanceledException)
@@ -155,11 +167,13 @@
         // encrypt these later
         await localStorage.SetItemAsync<string>("PublicKey", cryptographyService.PublicKeyString ?? throw new ArgumentNullException());
         await localStorage.SetItemAsync<string>("PrivateKey", cryptographyService.PrivateKeyString ?? throw new ArgumentNullException());
+
+        messagingService.SetAuthHeader(data.Token);
     }
 
-    private void NevigateToLogin()
+    private void GoTo(string link)
     {
-        navigationManager.NavigateTo("/login");
+        navigationManager.NavigateTo($"/{link}");
     }
 
 

@@ -1,4 +1,5 @@
-﻿@page "/login"
+﻿@page "/"
+@page "/login"
 @using MessagingApp.Shared.Models.Payloads
 @inject MessagingService MessagingService
 <PageTitle>MessagingApp</PageTitle>
@@ -6,8 +7,8 @@
 
 <div class="container d-flex justify-content-center align-items-center vh-100">
     <div class="card p-4 shadow" style="width: 450px;">
-        <MudText Typo="Typo.h1" Color="Color.Primary" Class="text-center mb-4">NEXUS</MudText>
-            <MudText Typo="Typo.subtitle1" Class="text-center">Secure End-to-End Encrypted Messaging</MudText>
+        <MudText Typo="Typo.h2" Color="Color.Primary" Class="text-center mb-4">NEXUS</MudText>
+        <MudText Typo="Typo.subtitle1" Class="text-center">Secure End-to-End Encrypted Messaging</MudText>
         <EditForm Model="loginPayload" OnValidSubmit="LoginUser">
             <DataAnnotationsValidator />
             <ValidationSummary class="text-error" />
@@ -32,7 +33,11 @@
 
 
             <button type="submit" class="btn btn-primary w-100">Login</button>
-            <MudButton Color="Color.Secondary" OnClick="NevigateToRegister">Don't have an account? Register</MudButton>
+            @*             <MudButton Color="Color.Secondary" OnClick="@(() => GoTo("register"))">Don't have an account? Register</MudButton>
+ *@            <MudNavLink OnClick="@(() => GoTo("register"))">Don't have an account? Register</MudNavLink>
+
+            @* <MudNavLink OnClick="@(() => GoTo("test"))">Test</MudNavLink> *@
+
         </EditForm>
     </div>
 </div>
@@ -41,19 +46,17 @@
     private LoginPayload loginPayload = new();
     private ApiResponse<RegiLoginResult>? loginResult;
     private bool isLoading = false;
+    string? pubKey = string.Empty;
 
-
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        // No need to reinitialize since we already have "= new()" above
-        // But we can set default values if needed
-        // loginPayload.PublicKey = "ThisIsATestPublicKey";
-        cryptographyService.GenerateKeysAsync();
+        await cryptographyService.GenerateKeysAsync();
+        pubKey = cryptographyService.PublicKeyString;
     }
 
     private async Task LoginUser()
     {
-        loginPayload.PublicKey = cryptographyService.PublicKey.ToString() ?? throw new ArgumentNullException();
+        loginPayload.PublicKey = pubKey;
         try
         {
             // Add loading state if needed
@@ -70,7 +73,8 @@
             }
             // success case: 
             await SaveUserData(loginResult.Data);
-            navigationManager.NavigateTo("/test");
+            navigationManager.NavigateTo("/contacts");
+
         }
         catch (OperationCanceledException)
         {
@@ -101,14 +105,20 @@
         }
     }
 
-
+    private void GoTo(string link)
+    {
+        navigationManager.NavigateTo($"/{link}");
+    }
     private async Task SaveUserData(RegiLoginResult data)
     {
         await localStorage.SetItemAsync<RegiLoginResult>("UserData", data);
 
         // encrypt these later
-        await localStorage.SetItemAsync<string>("PublicKey", cryptographyService.PublicKey.ToString());
-        await localStorage.SetItemAsync<string>("PrivateKey", cryptographyService.PrivateKey.ToString());
+        await localStorage.SetItemAsync<string>("PublicKey", cryptographyService.PublicKeyString);
+        await localStorage.SetItemAsync<string>("PrivateKey", cryptographyService.PrivateKeyString);
+
+        // save the token for other api calls
+        messagingService.SetAuthHeader(data.Token);
     }
 
     private void NevigateToRegister()

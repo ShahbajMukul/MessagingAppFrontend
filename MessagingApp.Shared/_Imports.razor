@@ -12,9 +12,12 @@
 @using MessagingApp.Shared.Models.Payloads
 @using MessagingApp.Shared.Models.Results
 @using MessagingApp.Shared.Services
+@inject ISnackbar Snackbar
 @inject MessagingService messagingService
 @inject NavigationManager navigationManager
 @inject CryptographyService cryptographyService
 @inject Blazored.LocalStorage.ILocalStorageService localStorage
 @using System.Text.RegularExpressions
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
 

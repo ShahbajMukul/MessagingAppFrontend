@@ -61,70 +61,70 @@ namespace MessagingApp.Shared.Services
             PublicKeyString = null;
             PrivateKeyString = null;
 
-            if (_isWebAssembly)
-            {
-                try
-                {
-                    Console.WriteLine("WebAssembly detected, calling JS generateRSAKeys...");
-                    // Expect object matching JS return { n, e, d, p, q, dp, dq, qi }
-                    var keys = await _jsRuntime.InvokeAsync<JsRSAKeyComponents>("generateRSAKeys");
-                    Console.WriteLine("JS generateRSAKeys returned.");
+            //if (_isWebAssembly)
+            //{
+            //    try
+            //    {
+            //        Console.WriteLine("WebAssembly detected, calling JS generateRSAKeys...");
+            //        // Expect object matching JS return { n, e, d, p, q, dp, dq, qi }
+            //        var keys = await _jsRuntime.InvokeAsync<JsRSAKeyComponents>("generateRSAKeys");
+            //        Console.WriteLine("JS generateRSAKeys returned.");
 
-                    // Add more robust check in case JS returns null or empty object
-                    if (keys == null || string.IsNullOrEmpty(keys.n))
-                    {
-                        throw new InvalidOperationException("Received null or invalid key data from JavaScript (JWK 'n' property missing or null).");
-                    }
+            //        // Add more robust check in case JS returns null or empty object
+            //        if (keys == null || string.IsNullOrEmpty(keys.n))
+            //        {
+            //            throw new InvalidOperationException("Received null or invalid key data from JavaScript (JWK 'n' property missing or null).");
+            //        }
 
-                    // Create RSAParameters from JWK components, using CORRECT property names and Base64Url decoding
-                    PublicKey = new RSAParameters
-                    {
-                        Modulus = FromBase64Url(keys.n),  // Use keys.n
-                        Exponent = FromBase64Url(keys.e) // Use keys.e
-                    };
+            //        // Create RSAParameters from JWK components, using CORRECT property names and Base64Url decoding
+            //        PublicKey = new RSAParameters
+            //        {
+            //            Modulus = FromBase64Url(keys.n),  // Use keys.n
+            //            Exponent = FromBase64Url(keys.e) // Use keys.e
+            //        };
 
-                    PrivateKey = new RSAParameters
-                    {
-                        Modulus = FromBase64Url(keys.n),  // Use keys.n
-                        Exponent = FromBase64Url(keys.e), // Use keys.e
-                        D = FromBase64Url(keys.d),
-                        P = FromBase64Url(keys.p),
-                        Q = FromBase64Url(keys.q),
-                        DP = FromBase64Url(keys.dp),
-                        DQ = FromBase64Url(keys.dq),
-                        InverseQ = FromBase64Url(keys.qi) // Use keys.qi
-                    };
+            //        PrivateKey = new RSAParameters
+            //        {
+            //            Modulus = FromBase64Url(keys.n),  // Use keys.n
+            //            Exponent = FromBase64Url(keys.e), // Use keys.e
+            //            D = FromBase64Url(keys.d),
+            //            P = FromBase64Url(keys.p),
+            //            Q = FromBase64Url(keys.q),
+            //            DP = FromBase64Url(keys.dp),
+            //            DQ = FromBase64Url(keys.dq),
+            //            InverseQ = FromBase64Url(keys.qi) // Use keys.qi
+            //        };
 
-                    // Convert RSAParameters to XML Strings
-                    PublicKeyString = PublicKey.ToXmlString(false);
-                    PrivateKeyString = PrivateKey.ToXmlString(true);
+            //        // Convert RSAParameters to XML Strings
+            //        PublicKeyString = PublicKey.ToXmlString(false);
+            //        PrivateKeyString = PrivateKey.ToXmlString(true);
 
-                    Console.WriteLine("RSA keys generated from JS and converted to XML strings.");
-                }
-                // Keep specific catch blocks first
-                catch (JSException jsEx)
-                {
-                    Console.WriteLine($"JS Interop Error: {jsEx.Message}");
-                    throw new InvalidOperationException("Failed during JavaScript interop key generation.", jsEx);
-                }
-                catch (ArgumentNullException argNullEx) // Catch nulls specifically
-                {
-                    Console.WriteLine($"Null argument error, likely from JS returning unexpected null value: {argNullEx.Message}");
-                    throw new InvalidOperationException("Received unexpected null data from JavaScript.", argNullEx);
-                }
-                catch (FormatException formatEx)
-                {
-                    Console.WriteLine($"Base64 Decoding Error: {formatEx.Message}");
-                    throw new InvalidOperationException("Failed to decode key data received from JavaScript.", formatEx);
-                }
-                catch (Exception ex) // General catch
-                {
-                    Console.WriteLine($"Unexpected error during WASM key generation: {ex.Message}");
-                    throw new InvalidOperationException("An unexpected error occurred during WASM key generation.", ex);
-                }
-            }
-            else // Server-side or MAUI Blazor Hybrid
-            {
+            //        Console.WriteLine("RSA keys generated from JS and converted to XML strings.");
+            //    }
+            //    // Keep specific catch blocks first
+            //    catch (JSException jsEx)
+            //    {
+            //        Console.WriteLine($"JS Interop Error: {jsEx.Message}");
+            //        throw new InvalidOperationException("Failed during JavaScript interop key generation.", jsEx);
+            //    }
+            //    catch (ArgumentNullException argNullEx) // Catch nulls specifically
+            //    {
+            //        Console.WriteLine($"Null argument error, likely from JS returning unexpected null value: {argNullEx.Message}");
+            //        throw new InvalidOperationException("Received unexpected null data from JavaScript.", argNullEx);
+            //    }
+            //    catch (FormatException formatEx)
+            //    {
+            //        Console.WriteLine($"Base64 Decoding Error: {formatEx.Message}");
+            //        throw new InvalidOperationException("Failed to decode key data received from JavaScript.", formatEx);
+            //    }
+            //    catch (Exception ex) // General catch
+            //    {
+            //        Console.WriteLine($"Unexpected error during WASM key generation: {ex.Message}");
+            //        throw new InvalidOperationException("An unexpected error occurred during WASM key generation.", ex);
+            //    }
+            //}
+            //else // Server-side or MAUI Blazor Hybrid
+            //{
                 Console.WriteLine(".NET environment detected, generating keys with RSA.Create...");
                 using (RSA rsa = RSA.Create(2048))
                 {
@@ -136,7 +136,7 @@ namespace MessagingApp.Shared.Services
 
                     Console.WriteLine("RSA keys generated using .NET cryptography and stored as XML strings.");
                 }
-            }
+           // }
 
             // Final checks remain the same
             if (string.IsNullOrEmpty(PublicKeyString)) { /* ... throw ... */ }
@@ -197,7 +197,7 @@ namespace MessagingApp.Shared.Services
 
 
 
-        public MessagePayload EncryptMessage(string plainText, string recipientPublicKey)
+        public GeneratedEncryptedStuff EncryptMessage(string plainText, string recipientPublicKey)
         {
             using (Aes aes = Aes.Create())
             {
@@ -216,7 +216,7 @@ namespace MessagingApp.Shared.Services
                 byte[] encryptedAesKey = EncryptAesKeyWithRsa(AesKey, recipientPublicKey);
 
                 // api expects the properties in string
-                var result = new MessagePayload
+                var result = new GeneratedEncryptedStuff
                 {
                     Content = Convert.ToBase64String(encryptedMessage),
                     EncryptionKey = Convert.ToBase64String(encryptedAesKey),

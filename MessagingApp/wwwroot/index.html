@@ -7,14 +7,15 @@
     <base href="/" />
     <link rel="stylesheet" href="_content/MessagingApp.Shared/bootstrap/bootstrap.min.css" />
     <link rel="stylesheet" href="_content/MessagingApp.Shared/app.css" />
-    <link rel="stylesheet" href="app.css" />
+    <link id="light-mode" rel="stylesheet" href="app.css" disabled/>
+    <link id="dark-mode" rel="stylesheet" href="darkMode.css" />
     <link rel="stylesheet" href="MessagingApp.styles.css" />
     <link rel="icon" href="data:,">
     <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
 </head>
 
-<body>
+<body style="background-color: gainsboro">
 
     <div class="status-bar-safe-area"></div>
 
@@ -22,6 +23,52 @@
 
     <script src="_framework/blazor.webview.js" autostart="false"></script>
     <script src="~/js/crypto.js" type="module"></script>
+
+    <script>
+        function setTheme(mode) {
+            const lightModeLink = document.getElementById("light-mode");
+            const darkModeLink = document.getElementById("dark-mode");
+
+            if (mode === "dark") {
+                darkModeLink.disabled = false;
+                lightModeLink.disabled = true;
+            } else {
+                darkModeLink.disabled = true;
+                lightModeLink.disabled = false;
+            }
+        }
+
+        // to detect app closing
+        window.blazorInterop = {
+            // Function to add the event listener
+            registerUnloadHandler: function (dotNetHelper) {
+                // Store the helper for use in the event listener
+                window.dotNetHelperReference = dotNetHelper;
+
+                // Listen for the 'unload' event
+                window.addEventListener('unload', function (event) {
+                    // Call the C# method when the page unloads
+                    // IMPORTANT: Use invokeMethodAsync but expect it to run quickly/synchronously.
+                    // Complex async operations might not complete.
+                    if (window.dotNetHelperReference) {
+                        window.dotNetHelperReference.invokeMethodAsync('SaveDataOnExit');
+                    }
+                });
+            },
+
+            // Optional: Cleanup function if needed
+            disposeUnloadHandler: function () {
+                // Consider removing the listener if the component is disposed,
+                // though usually not critical for 'unload'.
+                window.removeEventListener('unload', /* reference to the handler function if stored */);
+                if (window.dotNetHelperReference) {
+                    // Release the reference if the C# object is disposed
+                    // Note: Direct disposal from JS isn't standard; C# handles DotNetObjectReference disposal.
+                }
+            }
+        };
+    </script>
+
 
 </body>
 

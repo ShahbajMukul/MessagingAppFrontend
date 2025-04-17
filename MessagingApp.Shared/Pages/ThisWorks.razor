@@ -1,0 +1,11 @@
+﻿@* @page "/" *@
+@page "/thisworks"
+<h3>ThisWorks</h3>
+<MudButton FullWidth="true" Color="Color.Secondary" OnClick="@(() => GoTo("login"))" >Already have an account? Login</MudButton>
+@code {
+    private void GoTo(string link)
+    {
+        navigationManager.NavigateTo($"/{link}");
+    }
+
+}

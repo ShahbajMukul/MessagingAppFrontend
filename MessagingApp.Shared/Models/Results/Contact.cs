@@ -6,12 +6,18 @@ using System.Threading.Tasks;
 
 namespace MessagingApp.Shared.Models.Results
 {
-    public class Contact
+    public class Contact : UserInfo
     {
-        public string UserId { get; set; } = "";
-        public string DisplayName { get; set; } = "";
-        public string PublicKey { get; set; } = ""; // Important for sending messages
-                                                    // Add other properties like presence status, etc.
-        public bool IsExternal { get; set; } = false; // Flag if it came from external search
+        public int ConversationID { get; set; }
+        public DateTime LastActiveTime{ get; set; }
+        public bool ActiveNow { get; set; }
+        public string PublicKey { get; set; } = "";
+
+        public string DisplayName { get; private set; } = "";
+
+        public Contact() 
+        {
+            DisplayName = FirstName + " " + LastName;
+        }
     }
 }

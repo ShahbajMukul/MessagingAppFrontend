@@ -17,7 +17,9 @@ builder.Services.AddBlazoredLocalStorage();
 
 builder.Services.AddScoped<MessagingService>();
 builder.Services.AddScoped<CryptographyService>();
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("http://localhost:5000/api/") });
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("https://localhost:5500/api/") });
+
+// builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("https://10.0.0.23:5500/api/") });
 
 
 var app = builder.Build();

@@ -1,12 +1,22 @@
-﻿@page "/conversation/{ContactId}"
+﻿@page "/conversation"
 @* Inject services later if needed for real data *@
 
-@if (_contact == null || _isLoading)
+@if (_isLoading)
 {
     <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
 }
 else
 {
+    @if (!string.IsNullOrEmpty(errorText))
+    {
+        <MudAlert Severity="Severity.Error">@errorText</MudAlert>
+    }
+    else if (_contact == null) // Add check for contact if needed after loading
+    {
+        <MudText>Contact not found.</MudText>
+        // Or handle appropriately
+    }
+
     <MudPaper Elevation="0" Class="d-flex flex-column" Style="height: calc(100vh - 64px); ">
         @* Adjust 64px based on your main layout's app bar height *@
 
@@ -23,23 +33,23 @@ else
 
         @* --- Chat Area (Scrollable) --- *@
         <MudPaper Elevation="0" Class="flex-grow-1 pa-2" Style="overflow-y: auto;">
-            @if (_messages == null || !_messages.Any())
+            @if (_allMessages == null || !_allMessages.Any())
             {
                 <MudText Align="Align.Center">No messages yet.</MudText>
             }
             else
             {
-                @foreach (var message in _messages.OrderBy(m => m.SentTime)) @* Ensure messages are ordered *@
+                @foreach (var message in _allMessages.OrderBy(m => m.SentTime)) @* Ensure messages are ordered *@
                 {
                     <MudChat ChatPosition="@GetBubblePosition(message.SenderUserID)">
-                        <MudChatHeader Name="@(message.SenderUserID == _currentUserId ? "" : "Give Name")" Time="@message.SentTime.ToString("MM/dd HH:mm tt")" />
-                       @if(message.SenderUserID != _currentUserId)
-                       {
-                        <MudAvatar Size="@Size.Small">
-                            @GetInitials(message.SenderUserID.ToString())
-                        </MudAvatar>
-                       }
-                        <MudChatBubble Color="@(message.SenderUserID == _currentUserId ? Color.Primary : Color.Default)">
+                        <MudChatHeader Name="@(message.SenderUserID == _currentUserInfo?.UserID ? "" : $"{_contact?.FirstName} {_contact?.LastName}")" Time="@message.SentTime.ToString("MM/dd HH:mm tt")" />
+                        @if (message.SenderUserID != _currentUserInfo.UserID)
+                        {
+                            <MudAvatar Size="@Size.Small">
+                                @ContactInitials
+                            </MudAvatar>
+                        }
+                        <MudChatBubble Color="@(message.SenderUserID == _currentUserInfo.UserID ? Color.Primary : Color.Default)">
                             @message.Content
                             @* <br />
                             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -57,17 +67,17 @@ else
         <MudPaper Elevation="2" Class="pa-2">
             <MudStack Row="true" AlignItems="AlignItems.Center">
                 <MudTextField @bind-Value="_newMessageContent"
-                              Placeholder="Type a message..."
-                              Variant="Variant.Outlined"
-                              Lines="1"
-                              Class="flex-grow-1"
-                              Adornment="Adornment.End"
-                              OnKeyDown="HandleInputKeyDown" />
+                Placeholder="Type a message..."
+                Variant="Variant.Outlined"
+                Lines="1"
+                Class="flex-grow-1"
+                Adornment="Adornment.End"
+                OnKeyDown="HandleInputKeyDown" />
                 <MudIconButton Icon="@Icons.Material.Filled.Send"
-                               Color="Color.Primary"
-                               OnClick="SendMessageAsync"
-                               Disabled="string.IsNullOrWhiteSpace(_newMessageContent)"
-                               Class="ml-2" />
+                Color="Color.Primary"
+                OnClick="SendMessageAsync"
+                Disabled="string.IsNullOrWhiteSpace(_newMessageContent)"
+                Class="ml-2" />
             </MudStack>
         </MudPaper>
 
@@ -76,90 +86,214 @@ else
 
 
 @code {
-    [Parameter] public string ContactId { get; set; } = string.Empty;
+    public int ContactID { get; set; }
+    private string? ContactInitials { get; set; }
+    public int conversationID { get; set; }
+    private UserInfo? _currentUserInfo;
+    private OpenConversationResult? _contact;
+    private List<MessageResult>? _offlineMessages;
+    private List<MessageResult>? _onlineFetchedMessages;
+    private List<MessageResult>? _allMessages = new List<MessageResult>(); // Initialize to avoid null issues
 
-    // --- Mock Data ---
-    private Contact? _contact;
-    private List<Message>? _messages;
+    // singalR connection
+    private HubConnection? _hubConnection;
+
+
+
     private bool _isLoading = true;
-
-    // Mock the currently logged-in user's ID
-    private int _currentUserId = 2; // Assign a distinct ID for the current user
+    private string errorText = string.Empty;
 
     private string _newMessageContent = string.Empty;
 
-    // Contact definition (can be moved to a shared model)
-    public class Contact
+
+    // local stuff
+    private DotNetObjectReference<ConversationPage> dotNetHelper; // refernece to this component
+
+
+    protected override Task OnInitializedAsync()
     {
-        public int UserId { get; set; }
-        public string DisplayName { get; set; } = string.Empty;
+        await InitializeSignalRAsync();
     }
 
-    // Message definition (matches your provided class)
-    public class Message
+    private async Task IntializeSignalRAsync()
     {
-        public int MessageID { get; set; }
-        public int ConversationID { get; set; } // Assume we filter by this or participant IDs
-        public string Content { get; set; } = string.Empty;
-        public string EncryptedKey { get; set; } = string.Empty;
-        public int SenderUserID { get; set; }
-        public DateTime SentTime { get; set; }
-        public bool IsRead { get; set; }
-        public string IV { get; set; } = string.Empty;
+        var hubUrl = navigationManager.ToAbsoluteUri("/chathub");
+        Console.WriteLine("trying to connect to signalR hub at " + hubUrl);
+
+        _hubConnection = new HubConnectionBuilder()
+                            .WithUrl(hubUrl)
+                            .WithAutomaticReconnect()
+                            .WithAccessTokenProvider(async () =>
+                            {
+                                var token = await localStorage.GetItemAsStringAsync("authToken");
+                                return token;
+                            })
+                            .Build();
+
+        // Behavior when the server sends a message
+        _hubConnection.On<MessageResult>("ReceiveMessage", async (messageResult) =>
+            if (messageResult.ConversationID == this.conversationID)
+        {
+            Console.WriteLine($"SignalR received message for this conversation: {messageResult.ConversationID}");
+
+            // decrypt the message
+            if (messageResult.Sender)
+        }
+        )
     }
 
     protected override async Task OnParametersSetAsync()
     {
         _isLoading = true;
-        // --- Simulate loading data based on ContactId ---
-        await Task.Delay(500); // Simulate network/DB delay
+        errorText = string.Empty;
+        _onlineFetchedMessages = null; // Reset online messages
+        _allMessages = new List<MessageResult>(); // Reset all messages
+        conversationID = 0;
 
-        // Find or create mock contact
-        // In a real app, you'd fetch this from a service using ContactId
-        _contact = GetMockContact(int.Parse(ContactId)); // Assuming ContactId is parsable to int
+        // get user info
+        _currentUserInfo = await localStorage.GetItemAsync<RegiLoginResult>("UserData");
+        if (_currentUserInfo == null)
+        {
+            errorText = "You must be logged in to view conversations.";
+            _isLoading = false;
+            return;
+        }
 
-        // Generate mock messages for this conversation
-        _messages = GenerateMockMessages(_currentUserId, _contact?.UserId ?? 0); // Pass both user IDs
+        // get other user info
+        ContactID = await localStorage.GetItemAsync<int>("contactID");
+        ContactInitials = await localStorage.GetItemAsStringAsync("contactInitials");
+        // Open the conversation
+        var openConvResult = await messagingService.OpenConversationAsync(ContactID);
+
+        if (openConvResult.IsSuccess && openConvResult.Data != null)
+        {
+            _contact = openConvResult.Data;
+            conversationID = _contact.ConversationID;
+
+            // Get online messages (includes decryption of received messages)
+            await getOnlineMessages(conversationID);
+        }
+        else
+        {
+            errorText = openConvResult.ErrorMessage ?? "Error opening conversation";
+        }
+
+        // Get offline messages
+        _offlineMessages = await localStorage.GetItemAsync<List<MessageResult>>($"Conv:{_currentUserInfo.UserID}-{_contact!.UserID}") ?? new List<MessageResult>();
+
+        // --- New Merging Logic ---
+        var finalMessages = new Dictionary<int, MessageResult>(); // Use Dictionary to handle potential duplicates, keyed by MessageID
+
+        // 1. Process Offline Messages First (potentially have plaintext sent messages)
+        foreach (var offlineMsg in _offlineMessages)
+        {
+            // Ensure we don't add duplicates if offline storage somehow got corrupted
+            if (!finalMessages.ContainsKey(offlineMsg.MessageID))
+            {
+                finalMessages.Add(offlineMsg.MessageID, offlineMsg);
+            }
+        }
+
+        // 2. Process Online Messages, updating or adding to the dictionary
+        if (_onlineFetchedMessages != null)
+        {
+            foreach (var onlineMsg in _onlineFetchedMessages)
+            {
+                if (onlineMsg.SenderUserID != _currentUserInfo.UserID)
+                {
+                    // Received message: Online version (already decrypted in getOnlineMessages) is preferred
+                    finalMessages[onlineMsg.MessageID] = onlineMsg; // Add or overwrite with decrypted online version
+                }
+                else
+                {
+                    // Sent message: Check if it exists in our dictionary (from offline cache)
+                    if (finalMessages.TryGetValue(onlineMsg.MessageID, out var existingMsg))
+                    {
+                        // Already exists (likely from offline cache with plaintext).
+                        // Optionally update metadata like IsRead from online version if needed.
+                        // For now, we assume the offline version's content is what we want.
+                        // existingMsg.IsRead = onlineMsg.IsRead; // Example: Update IsRead status
+                    }
+                    else
+                    {
+                        // Sent message fetched online but NOT found offline.
+                        // Add it, but content will be the encrypted version from online fetch.
+                        // You might want to change the content here to indicate it's unreadable locally.
+                        // onlineMsg.Content = "[Sent Message - Encrypted]"; // Optional: Placeholder
+                        finalMessages.Add(onlineMsg.MessageID, onlineMsg);
+                    }
+                }
+            }
+        }
+
+        // Convert dictionary values back to a list and order
+        _allMessages = finalMessages.Values.OrderBy(m => m.SentTime).ToList();
+        // --- End of New Merging Logic ---
+
+
+        // for js interop
+        dotNetHelper = DotNetObjectReference.Create(this);
+        // Ensure the JS function exists and handles potential errors
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("blazorInterop.registerUnloadHandler", dotNetHelper);
+        }
+        catch (JSException jsEx)
+        {
+            Console.WriteLine($"Error registering unload handler: {jsEx.Message}");
+            // Handle the error appropriately, maybe log it or show a non-critical warning
+        }
+
 
         _isLoading = false;
-        // StateHasChanged(); // Not strictly needed here, Blazor handles it after async completion
-
-        // TODO: Scroll to bottom after loading messages
-        // await Task.Delay(50); // Give render time
-        // await JSRuntime.InvokeVoidAsync("scrollToElement", "scrollTarget"); // Requires JS function
+        StateHasChanged();
+        // await JSRuntime.InvokeVoidAsync("scrollToElement", "scrollTarget");
     }
 
-    private Contact GetMockContact(int userId)
+    private async Task getOnlineMessages(int conversationID)
     {
-        // Mock contact lookup
-        var contacts = new List<Contact> {
-            new Contact { UserId = 1, DisplayName = "Anakin Skywalker" },
-            new Contact { UserId = 2, DisplayName = "Obi-Wan Kenobi" },
-            new Contact { UserId = 3, DisplayName = "Yoda" },
-            new Contact { UserId = _currentUserId, DisplayName = "Me" } // Just for lookup if needed
-        };
-        return contacts.FirstOrDefault(c => c.UserId == userId) ?? new Contact { UserId = userId, DisplayName = $"User {userId}" };
+        // get the messages
+        var messagesResult = await messagingService.GetMessagesAsync(conversationID);
+
+        if (messagesResult.IsSuccess && messagesResult.Data != null)
+        {
+            _onlineFetchedMessages = messagesResult.Data;
+
+            // Decrypt each online message, but ONLY if it's NOT sent by the current user
+            foreach (var message in _onlineFetchedMessages)
+            {
+                if (message.SenderUserID != _currentUserInfo!.UserID) // Decrypt only received messages
+                {
+                    // Check if content is already decrypted (e.g., from a previous load) - unlikely needed with current flow but safe
+                    if (!string.IsNullOrEmpty(message.EncryptedKey) && !string.IsNullOrEmpty(message.IV)) // Basic check if it looks encrypted
+                    {
+                        try
+                        {
+                            string decryptedContent = cryptographyService.DecryptMessage(message.Content, message.EncryptedKey, message.IV);
+                            message.Content = decryptedContent; // Update message content with decrypted version
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Decryption failed for message {message.MessageID}: {ex.Message}");
+                            message.Content = "[Decryption Failed]"; // More specific error
+                        }
+                    }
+                }
+                // No 'else' needed here, leave sent messages as they are (encrypted from server)
+            }
+        }
+        else
+        {
+            errorText = messagesResult.ErrorMessage ?? "Could not load messages";
+            _onlineFetchedMessages = null; // Ensure it's null if fetch failed
+        }
     }
 
-    private List<Message> GenerateMockMessages(int currentUser, int otherUser)
-    {
-        // Simple mock data generation
-        var messageList = new List<Message>();
-        if (otherUser == 0) return messageList; // No contact to chat with
-
-        messageList.Add(new Message { MessageID = 1, ConversationID = 1, SenderUserID = otherUser, Content = "It's over Anakin", SentTime = DateTime.Now.AddMinutes(-5) });
-        messageList.Add(new Message { MessageID = 2, ConversationID = 1, SenderUserID = otherUser, Content = "I have the high ground.", SentTime = DateTime.Now.AddMinutes(-4.5) });
-        messageList.Add(new Message { MessageID = 3, ConversationID = 1, SenderUserID = currentUser, Content = "You underestimate my power!", SentTime = DateTime.Now.AddMinutes(-4) });
-        messageList.Add(new Message { MessageID = 4, ConversationID = 1, SenderUserID = otherUser, Content = "Don't try it.", SentTime = DateTime.Now.AddMinutes(-3.5) });
-        messageList.Add(new Message { MessageID = 5, ConversationID = 1, SenderUserID = currentUser, Content = "Ahhhhh!", SentTime = DateTime.Now.AddMinutes(-3) });
-        messageList.Add(new Message { MessageID = 6, ConversationID = 1, SenderUserID = otherUser, Content = "...", SentTime = DateTime.Now.AddMinutes(-1) });
-
-        return messageList;
-    }
 
     private ChatBubblePosition GetBubblePosition(int senderId)
     {
-        return senderId == _currentUserId ? ChatBubblePosition.End : ChatBubblePosition.Start;
+        // Add null check for _currentUserInfo
+        return senderId == _currentUserInfo?.UserID ? ChatBubblePosition.End : ChatBubblePosition.Start;
     }
 
     private async Task HandleInputKeyDown(KeyboardEventArgs e)
@@ -172,41 +306,110 @@ else
 
     private async Task SendMessageAsync()
     {
-        if (string.IsNullOrWhiteSpace(_newMessageContent) || _messages == null) return;
+        // Add null check for _allMessages
+        if (string.IsNullOrWhiteSpace(_newMessageContent) || _contact == null || _currentUserInfo == null || _allMessages == null) return;
 
-        var newMessage = new Message
+        var tempMessageContent = _newMessageContent; // Store plaintext before clearing
+        _newMessageContent = string.Empty; // Clear input field immediately for better UX
+
+        GeneratedEncryptedStuff encryptedMessage;
+        try
+        {
+            encryptedMessage = cryptographyService.EncryptMessage(tempMessageContent, _contact.PublicKey!);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Encryption failed: {ex.Message}", Severity.Error);
+            _newMessageContent = tempMessageContent; // Restore content if encryption fails
+            return;
+        }
+
+
+        if (string.IsNullOrEmpty(encryptedMessage.Content) ||
+            string.IsNullOrEmpty(encryptedMessage.EncryptionKey) ||
+            string.IsNullOrEmpty(encryptedMessage.IV))
+        {
+            errorText = "Message encryption resulted in empty fields.";
+            _newMessageContent = tempMessageContent; // Restore content
+            return;
+        }
+
+        var newMessagePayload = new MessagePayload
             {
-                MessageID = (_messages.Any() ? _messages.Max(m => m.MessageID) : 0) + 1, // Basic ID generation
-                ConversationID = 1, // Assuming a fixed conversation ID for mock
-                Content = _newMessageContent,
-                SenderUserID = _currentUserId,
-                SentTime = DateTime.Now,
-                IsRead = false, // Sent messages start as unread by recipient
-                EncryptedKey = "", // Handle encryption later
-                IV = ""
+                ConversationID = conversationID,
+                Content = encryptedMessage.Content,
+                SentTime = DateTime.UtcNow, // Use UtcNow for consistency
+                EncryptedKey = encryptedMessage.EncryptionKey,
+                IV = encryptedMessage.IV
             };
 
-        _messages.Add(newMessage);
-        _newMessageContent = string.Empty; // Clear input
+        // --- Add Local Plaintext Version Immediately ---
+        // Create a temporary ID or use a placeholder until API confirms
+        var localMessage = new MessageResult
+            {
+                // Assign a temporary negative ID or Guid? Or wait for API response?
+                // For simplicity, let's assume API response will give us the real ID later.
+                // We'll add it now for immediate display.
+                ConversationID = conversationID,
+                SenderUserID = _currentUserInfo.UserID,
+                Content = tempMessageContent, // Use the stored plaintext
+                EncryptedKey = "", // Not relevant for local display of sent message
+                IV = "",           // Not relevant for local display of sent message
+                SentTime = newMessagePayload.SentTime,
+                IsRead = false // Default to unread
+            };
+        _allMessages.Add(localMessage);
+        _allMessages = _allMessages.OrderBy(m => m.SentTime).ToList(); // Re-sort
+        StateHasChanged(); // Update UI immediately
+                           // --- End of Local Add ---
 
-        // StateHasChanged(); // Let Blazor handle update triggered by collection change/event
 
-        // TODO: Call API to actually send the message
-        // TODO: Scroll to bottom after sending
-        await Task.Delay(50); // Give render time
-                              // await JSRuntime.InvokeVoidAsync("scrollToElement", "scrollTarget"); // Requires JS interop setup
+        // Send to API
+        var sentMessageReponse = await messagingService.SendMessageAsync(newMessagePayload);
     }
 
-    // Helper for Avatar Initials
-    private string GetInitials(string? name)
+
+    // Method that gets invoked when the page/app closes
+    [JSInvokable]
+    public async Task SaveDataOnExit()
     {
-        if (string.IsNullOrWhiteSpace(name)) return "?";
-        var parts = name.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0) return "?";
-        if (parts.Length >= 2)
+        // Ensure _currentUserInfo and _contact are not null before creating key
+        if (_currentUserInfo != null && _contact != null && _allMessages != null)
         {
-            return $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant();
+            try
+            {
+                // Save the current state of _allMessages, which includes plaintext sent messages
+                await localStorage.SetItemAsync<List<MessageResult>>($"Conv:{_currentUserInfo.UserID}-{_contact.UserID}", _allMessages);
+                Console.WriteLine($"Saved {_allMessages.Count} messages to local storage on exit.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving messages to local storage on exit: {ex}");
+            }
         }
-        return $"{parts[0][0]}".ToUpperInvariant();
+        else
+        {
+            Console.WriteLine("Could not save messages on exit: UserInfo, Contact, or Messages list was null.");
+        }
+    }
+
+
+    private string GetInitials(int senderUserID) // No change needed here
+    {
+        if (_contact == null || _currentUserInfo == null)
+        {
+            return "?"; // Return a placeholder
+        }
+
+        if (senderUserID == _contact.UserID)
+        {
+            return (_contact.FirstName?.Length > 0 ? _contact.FirstName[0].ToString() : "") +
+                   (_contact.LastName?.Length > 0 ? _contact.LastName[0].ToString() : "");
+        }
+        else
+        {
+            return (_currentUserInfo.FirstName?.Length > 0 ? _currentUserInfo.FirstName[0].ToString() : "") +
+                  (_currentUserInfo.LastName?.Length > 0 ? _currentUserInfo.LastName[0].ToString() : "");
+        }
     }
 }

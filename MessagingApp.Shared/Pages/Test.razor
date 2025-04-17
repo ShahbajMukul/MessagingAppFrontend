@@ -1,15 +1,12 @@
-﻿@page "/"
-@page "/test"
-
-@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
-
-
+﻿@page "/test"
 <MudTextField Label="Saved Text" Variant="Variant.Outlined" @bind-Value="inpText"></MudTextField>
 <MudButton Variant="Variant.Filled" Color="Color.Secondary" @onclick="saveLocally">Save</MudButton>
 <br />
 <MudText>From local storage: @inpText</MudText>
 <br />
 <br />
+
+<OptionsPage/>
 
 <h3>Working? -> @result</h3>
 <br />
@@ -26,8 +23,19 @@
 
 
 
+
+
 <MudText>privKey: @privKey</MudText>
 <MudText>pubKey: @pubKey</MudText>
+
+
+<MudNavGroup Title="Settings" Expanded="true">
+    <MudText>Links</MudText>
+    <MudNavLink OnClick="@(() => GoTo("login"))">LOGIN</MudNavLink>
+    <MudNavLink OnClick="@(() => GoTo("thisworks"))">ThisWorks</MudNavLink>
+    <MudNavLink OnClick="@(() => GoTo("register"))">REGISTER</MudNavLink>
+</MudNavGroup>
+
 
 <h3>Contacts with Search</h3>
 
@@ -35,43 +43,45 @@
 <MudPaper Class="pa-2" Elevation="0">
     @* Temporarily move TextField outside Toolbar *@
     <MudTextField Value="_searchTerm"
-                  ValueChanged="@(async (string newSearchTerm) => OnSearchTermChanged(newSearchTerm))"
-                  Placeholder="Search contacts..."
-                  Variant="Variant.Outlined"
-                  Margin="Margin.Dense"
-                  Adornment="Adornment.Start"
-                  AdornmentIcon="@Icons.Material.Filled.Search"
-                  DebounceInterval="300"
-                  Clearable="true" />
+    ValueChanged="@(async (string newSearchTerm) => OnSearchTermChanged(newSearchTerm))"
+    Placeholder="Search contacts..."
+    Variant="Variant.Outlined"
+    Margin="Margin.Dense"
+    Adornment="Adornment.Start"
+    AdornmentIcon="@Icons.Material.Filled.Search"
+    DebounceInterval="300"
+    Clearable="true" />
 
     <MudToolBar Dense="true">
-         @* Toolbar is now empty or just has Add button later *@
+        @* Toolbar is now empty or just has Add button later *@
     </MudToolBar>
 
     <MudDivider Class="my-2" />
 
-@* CHANGE: Condition now checks _filteredContacts *@
-@if (_filteredContacts == null)
-{
-    <p><em>Loading...</em></p>
-}
-else if (!_filteredContacts.Any())
-{
-    <p><em>No contacts found matching "@_searchTerm".</em></p> @* Improved message *@
-}
-else
-{
-    <MudList Dense="true" T="Contact">
-        @* CHANGE: Loop over _filteredContacts *@
-        @foreach (var contact in _filteredContacts)
-        {
-            <MudListItem>
-                @contact.DisplayName
-            </MudListItem>
-        }
-    </MudList>
-}
+    @* CHANGE: Condition now checks _filteredContacts *@
+    @if (_filteredContacts == null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else if (!_filteredContacts.Any())
+    {
+        <p><em>No contacts found matching "@_searchTerm".</em></p> @* Improved message *@
+    }
+    else
+    {
+        <MudList Dense="true" T="Contact">
+            @* CHANGE: Loop over _filteredContacts *@
+            @foreach (var contact in _filteredContacts)
+            {
+                <MudListItem>
+                    @contact.DisplayName
+                </MudListItem>
+            }
+        </MudList>
+    }
 </MudPaper>
+
+
 @code {
     // ADD BACK: Search term field
     private string _searchTerm = string.Empty;
@@ -89,7 +99,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await Task.Delay(10);
 
         // Populate the original list
         _allContacts = new List<Contact>()
@@ -101,11 +110,15 @@ else
             new Contact { UserId = "4", DisplayName = "David Jones" }
         };
 
+        // test
         // ADD BACK: Initial call to filter
         FilterContacts();
     }
 
-
+    private void GoTo(string link)
+    {
+        navigationManager.NavigateTo($"/{link}");
+    }
 
     // ADD BACK: Handler for search term changes
     private void OnSearchTermChanged(string newSearchTerm)
@@ -178,6 +191,11 @@ else
             pubKey = await localStorage.GetItemAsStringAsync("PublicKey") ?? string.Empty;
 
             // Tell Blazor to re-render ONLY IF data loaded AFTER the first paint needs to be displayed
+
+            if (rlResult != null && rlResult.Token != "")
+            {
+                GoTo("contacts");
+            }
             StateHasChanged();
         }
     }

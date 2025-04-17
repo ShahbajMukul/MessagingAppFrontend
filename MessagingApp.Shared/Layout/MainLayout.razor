@@ -1,14 +1,11 @@
-﻿@* Restore original MainLayout.razor *@
-@inherits LayoutComponentBase
+﻿@inherits LayoutComponentBase
 @inject NavigationManager NavigationManager
 @* Assuming you have a Contact model defined/imported *@
-@using MessagingApp.Shared.Models; // Or wherever Contact is defined
+@using MessagingApp.Shared.Models; 
 @using MessagingApp.Shared.Pages;
-
 <MudThemeProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
-
 <MudLayout>
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@DrawerToggle" />
@@ -19,21 +16,20 @@
         <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="Logout" />
     </MudAppBar>
 
-    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2" Variant="@DrawerVariant.Persistent">
-         @* Re-introduce ContactsPanel *@
-         <ContactsPanel OnContactSelected="HandleContactSelected" SelectedContact="_selectedContactForHighlighting" />
-    </MudDrawer>
+    @* <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2" Variant="@DrawerVariant.Persistent">
+@*         <ContactsPanel  />
+  </MudDrawer> *@
 
     <MudMainContent Class="pt-16 px-4">
         <MudContainer MaxWidth="MaxWidth.False">
-             @Body
+            @Body
         </MudContainer>
     </MudMainContent>
 </MudLayout>
 
 @code {
     bool _drawerOpen = true;
-   private Contact? _selectedContactForHighlighting; // To track selected contact
+    private Contact? _selectedContactForHighlighting; // To track selected contact
 
     void DrawerToggle()
     {
@@ -45,8 +41,8 @@
     {
 
         Console.WriteLine($"MainLayout: Contact selected - {selectedContact.DisplayName}"); // Add log
-        // Navigate to the chat page for this contact
-        NavigationManager.NavigateTo($"/conversation/{selectedContact.UserId}");
+                                                                                            // Navigate to the chat page for this contact
+        NavigationManager.NavigateTo($"/conversation/{selectedContact.UserID}");
         // Optional: Close drawer on mobile after selection?
         // if (IsMobile) { _drawerOpen = false; }
         StateHasChanged(); // Ensure UI updates if needed
@@ -63,4 +59,4 @@
 
     // Need to define Contact class or import it
     // public class Contact { public string UserId { get; set; } = ""; public string DisplayName { get; set; } = ""; public string PublicKey { get; set; } = "";}
-}
+}  

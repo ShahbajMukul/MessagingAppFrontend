@@ -8,10 +8,11 @@ namespace MessagingApp.Shared.Models.Payloads
 {
     public class MessagePayload
     {
-        public int ConversationID { get; set; }
-        public string? Content { get; set; }
-        public string? EncryptionKey { get; set; }
-        public string? IV { get; set; }
-        public DateTime SentTime { get; set; }
+        public required int ConversationID { get; set; }
+        public required string Content { get; set; }
+        public required string EncryptedKey { get; set; }
+        public required string IV { get; set; }
+        public required DateTime SentTime { get; set; }
+
     }
 }

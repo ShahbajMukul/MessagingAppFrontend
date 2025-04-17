@@ -1,232 +1,290 @@
 ﻿@* Components/ContactsPanel.razor *@
+@page "/contacts"
 @inject IDialogService DialogService
-@* @inject ContactService contactService // Assuming a service to manage contacts *@
+@inject MessagingService MessagingService
+
 <MudPaper Class="pa-2" Elevation="0">
-    @* Temporarily move TextField outside Toolbar *@
     <MudToolBar Dense="true">
         <MudTextField @ref="_searchTextField"
-                      Value="_searchTerm"
-                  ValueChanged="@(async (string newSearchTerm) => OnSearchTermChanged(newSearchTerm))"
-                      Placeholder="Search or Add contact..."
-                      Variant="Variant.Outlined"
-                      Margin="Margin.Dense"
-                      Adornment="Adornment.Start"
-                      AdornmentIcon="@Icons.Material.Filled.Search"
-                      DebounceInterval="300"
-                      Clearable="true"
-                      Immediate="true" /> @* Try adding Immediate for faster Clearable updates *@
+        T="string"
+        Value="_searchTerm"
+        ValueChanged="@OnSearchTermChanged"
+        Placeholder="Search a new user"
+        Variant="Variant.Outlined"
+        Margin="Margin.Dense"
+        Adornment="Adornment.Start"
+        AdornmentIcon="@Icons.Material.Filled.Search"
+        DebounceInterval="0"
+        Clearable="true"
+        OnKeyDown="HandleEnterForSearch"
+        OnClearButtonClick="@(() => { _searchTerm = string.Empty; _searchResults = null; _searchAttempted = false; })"
+        Immediate="true"
+        Class="flex-grow-1" />
 
-        @* Add the regular Add button back - we'll hide it conditionally later if needed, but maybe keep both? Or replace? Let's replace for now. *@
-        @* <MudIconButton Icon="@Icons.Material.Filled.AddComment" Title="Add Contact Manually" OnClick="OpenAddContactDialog" Class="ml-2" /> *@
-    </MudToolBar>
+        <MudButton Variant="Variant.Filled"
+        Color="Color.Primary"
+        OnClick="ExecuteSearch"
+        Disabled="_isLoading"
+        Class="ml-2">
+            Search
+        </MudButton>
+    </MudToolBar> 
 
     <MudDivider Class="my-2" />
 
-    @if (_isLoadingExternal)
+    @if (_isLoading)
     {
-        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-4" />
+        <div class="d-flex justify-center my-4">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        </div>
     }
-
-    @* --- Display Area: Switches between Local Results, External Prompt/Results --- *@
-    else
+    else if (_searchAttempted) // Only show results/message after a search was attempted
     {
-        @* --- Case 1: Show Prompt/Button for External Search/Add --- *@
-        @if (_showExternalSearchOption)
+        @* @if (_searchResults?.Any() == true)
         {
-            <div class="d-flex flex-column align-center my-4">
-                <MudText Typo="Typo.body1">No local contact found for "@_searchTerm".</MudText>
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.Search" @* Or Icons.Material.Filled.Add *@
-                           OnClick="HandleExternalSearchOrAddClick"
-                           Class="mt-2">
-                    Search/Add "@_searchTerm"
-                </MudButton>
+            <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-2 mb-1">Search Results</MudText>
+            <MudList Clickable="true" Dense="true" T="SearchResult">
+                @foreach (var result in _searchResults)
+                {
+                    <MudSelectItem OnClick="@(() => SelectContact(result.UserID))">
+                        <!-- Original MudSelectItem with async Task handler -->
+                        <MudStack Row="true" Spacing="1">
+                            <MudAvatar Color="Color.Secondary" Size="Size.Medium" Class="me-5">@GetInitials(result.FirstName!, result.LastName!)</MudAvatar>
+                            <MudText Typo="Typo.h5">@result.FirstName</MudText>
+                            <MudText Typo="Typo.h5">@result.LastName</MudText>
+                        </MudStack>
+                    </MudSelectItem>
+                }
+            </MudList>
+        } *@
 
-                @* --- Display External Search Results (if any) --- *@
-                @if (_externalSearchResults?.Any() == true)
-                {
-                    <MudText Typo="Typo.h6" Class="mt-4">External Results:</MudText>
-                    <MudList Clickable="true" Dense="true" T="Contact" Class="mt-2" Style="width: 100%;">
-                        @foreach (var contact in _externalSearchResults)
-                        {
-                            <MudListItem OnClick="@(() => SelectExternalContact(contact))">
-                                <MudAvatar Color="Color.Secondary" Size="Size.Medium">@GetInitials(contact.DisplayName)</MudAvatar>
-                                <MudText Class="ml-3">@contact.DisplayName</MudText>
-                                <MudText Typo="Typo.caption" Class="ml-auto"> (External)</MudText>
-                            </MudListItem>
-                        }
-                    </MudList>
-                }
-                else if (_externalSearchAttempted) // Show message if external search ran but found nothing
-                {
-                    <MudText Typo="Typo.body2" Class="mt-3">No external results found either.</MudText>
-                }
-            </div>
-        }
-        @* --- Case 2: Show Local Filtered Results (Default) --- *@
-        else if (_filteredContacts == null)
+        @* @if (_searchResults?.Any() == true)
+    {
+        <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-2 mb-1">Search Results</MudText>
+        <ul>
+            @foreach (var result in _searchResults)
+            {
+                <li>
+                    <button @onclick="() => TestButtonClicked(result.UserID)">
+                        <!-- Native MAUI Button -->
+                        @result.FirstName @result.LastName
+                    </button>
+                </li>
+            }
+        </ul>
+    } *@
+        @if (_searchResults?.Any() == true)
         {
-            @* Only show loading on initial load, not during filtering normally *@
-            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="my-4" />
-        }
-        else if (!_filteredContacts.Any() && string.IsNullOrWhiteSpace(_searchTerm))
-        {
-            <MudText Align="Align.Center" Color="Color.Info" Class="my-4">Search for contacts above.</MudText>
-        }
-        else if (_filteredContacts.Any()) // Only show list if there are local results
-        {
-            <MudList Clickable="true" Dense="true" T="Contact">
-                @foreach (var contact in _filteredContacts)
+            <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-2 mb-1">Search Results</MudText>
+            <MudList Clickable="true" Dense="true" T="SearchResult">
+                @foreach (var result in _searchResults)
                 {
-                    @* We'll add back selection highlighting later *@
-                    <MudListItem OnClick="@(() => SelectLocalContact(contact))">
-                        <MudAvatar Color="Color.Primary" Size="Size.Medium">@GetInitials(contact.DisplayName)</MudAvatar>
-                        <MudText Class="ml-3">@contact.DisplayName</MudText>
-                    </MudListItem>
+                    <MudSelectItem>
+                        <MudNavLink @onclick="() => SelectSearch(result)">
+                            <!-- MudSelectItem with void handler -->
+                            @* Avatar stays on the left *@
+                            <MudStack Row="true" Spacing="1">
+                                <MudAvatar Color="Color.Secondary" Size="Size.Medium" Class="me-5">@GetInitials(result.FirstName!, result.LastName!)</MudAvatar>
+                                <MudText Typo="Typo.h5">@result.FirstName</MudText>
+                                <MudText Typo="Typo.h5">@result.LastName</MudText>
+                            </MudStack>
+                        </MudNavLink>
+                    </MudSelectItem>
                 }
             </MudList>
         }
-        @* Implicitly handles: No local results AND empty search term (shows nothing or the initial message) *@
-
+        else
+        {
+            <MudText Align="Align.Center" Typo="Typo.body2" Class="mt-3">No users found matching "@_searchTerm".</MudText>
+        }
     }
-    </MudPaper>
+
+    @if(_contactsResults == null && !string.IsNullOrEmpty(contactsBodyText))
+    {
+        <MudAlert Severity="Severity.Error">contactsBodyText</MudAlert>
+    }
+    else
+    {
+        if(_contactsResults != null )
+        {
+            <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-2 mb-1">Contacts</MudText>
+
+            <MudList Class="mt-2" Clickable="true" Dense="true" T="ContactsResult">
+                @foreach (var contact in _contactsResults)
+                {
+                    if (string.IsNullOrEmpty(_searchTerm) || searched(contact))
+                    {
+                        <MudListItem OnClick="@(() => SelectContact(contact))">
+                            @* Avatar stays on the left *@
+                            <MudStack Row="true" Spacing="1">
+
+                                <MudAvatar Color="Color.Secondary" Size="Size.Medium" Class="me-5">@GetInitials(contact!.FirstName!, contact!.LastName!)</MudAvatar>
+
+                                <MudText Typo="Typo.h5">@contact.FirstName</MudText>
+                                <MudText Typo="Typo.h5">@contact.LastName</MudText>
+                            </MudStack>
+                        </MudListItem>
+                    }
+                }
+            </MudList>
+        }
+    }
+</MudPaper>
 
 @code {
-    [Parameter] public EventCallback<Contact> OnContactSelected { get; set; }
-    [Parameter] public Contact? SelectedContact { get; set; } // Pass currently selected contact for styling
 
+    private string contactsBodyText = string.Empty;
     private string _searchTerm = string.Empty;
-    private List<Contact>? _allContacts;
-    private List<Contact>? _filteredContacts;
-    private MudTextField<string> _searchTextField = default!; // Ref for text field
-                                                              // --- State for External Search ---
-        private bool _showExternalSearchOption = false;
-        private bool _isLoadingExternal = false;
-        private bool _externalSearchAttempted = false; // Track if the button was clicked
-        private List<Contact>? _externalSearchResults;
-        // ---------------------------------
-        protected override async Task OnInitializedAsync()
-        {
-        await Task.Delay(10); // Simulate load
-        _allContacts = new List<Contact>() {
-        new Contact { UserId= "1", DisplayName = "Ally Test" }, // Added space back
-        new Contact { UserId= "2",  DisplayName = "Jake Test" },
-        new Contact { UserId= "3",  DisplayName = "Case Test" }
-        };
-        FilterContacts(); // Initial filter
-        }
+    private MudTextField<string> _searchTextField = default!;
+    private bool _isLoading = false;
+    private bool _searchAttempted = false; // Track if a search has been performed
+
+    private RegiLoginResult? rlResult;
+    private string privKey;
+    private string pubKey;
 
 
+    // For API to fill
+    private List<ContactsResult>? _contactsResults;
+    private List<SearchResult>? _searchResults; 
 
-    // ADD BACK: Handler for search term changes
-    private void OnSearchTermChanged(string newSearchTerm)
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_searchTerm != newSearchTerm)
+        if (firstRender)
         {
-            _searchTerm = newSearchTerm;
-            FilterContacts(); // Filter when search term changes after debounce
+            try
+            {
+
+                // test
+                rlResult = await localStorage.GetItemAsync<RegiLoginResult>("UserData");
+                privKey = await localStorage.GetItemAsStringAsync("PrivateKey") ?? string.Empty; // Use string.Empty for consistency
+                pubKey = await localStorage.GetItemAsStringAsync("PublicKey") ?? string.Empty;
+
+
+                var contactsApiResult = await messagingService.GetContactsAsync();
+
+                if (contactsApiResult.IsSuccess)
+                {
+                    _contactsResults = contactsApiResult.Data;
+                }
+                else
+                {
+                    contactsBodyText = contactsApiResult.ErrorMessage ?? "Failed to load contacts";
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"!!!!!!!!!! ContactsPanel: ERROR in OnAfterRenderAsync (firstRender): {ex}");
+                Snackbar.Add("Failed to load contacts: " + ex);
+                // Optionally re-throw or handle gracefully
+            }
+            StateHasChanged();
         }
     }
 
-    // ADD BACK: Filtering logic
-        private void FilterContacts()
+    // Only updates the search term model
+    private void OnSearchTermChanged(string newSearchTerm)
+    {
+        _searchTerm = newSearchTerm;
+        if (_searchAttempted)
         {
-        // Reset external search state whenever local filter runs
-        _externalSearchResults = null;
-        _showExternalSearchOption = false;
-        _isLoadingExternal = false; // Ensure loading is off
-        _externalSearchAttempted = false;
+            _searchResults = null;
+            _searchAttempted = false; // Ready for a new search attempt
+        }
+    }
 
-        if (_allContacts == null)
+    private bool searched(ContactsResult contact)
+    {
+        if (contact.FirstName.Contains(_searchTerm) || 
+            contact.LastName.Contains(_searchTerm) || 
+            contact.Username.Contains(_searchTerm))
         {
-            _filteredContacts = null;
-            StateHasChanged(); // Update UI
+            return true; 
+        }
+        return false;
+    }
+
+    private async Task HandleEnterForSearch(KeyboardEventArgs args)
+    {
+        if(args.Key == "Enter")
+        {
+            await ExecuteSearch();
+        }
+    }
+
+    // Executes the search via API call
+    private async Task ExecuteSearch()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            Snackbar.Add("Please enter a search term.", Severity.Warning);
+            _searchResults = null; // Clear results if term is empty
+            _searchAttempted = false; // Reset search attempt state
+            StateHasChanged();
             return;
         }
 
-        List<Contact> currentlyFiltered;
-        if (string.IsNullOrWhiteSpace(_searchTerm))
-        {
-            currentlyFiltered = _allContacts.OrderBy(c => c.DisplayName).ToList();
-            _showExternalSearchOption = false; // No external search if input is empty
-        }
-        else
-        {
-            currentlyFiltered = _allContacts
-            .Where(c => c.DisplayName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(c => c.DisplayName)
-            .ToList();
-
-            // *** Key Logic: Show external option if local search finds nothing AND search term exists ***
-            if (!currentlyFiltered.Any())
-            {
-                _showExternalSearchOption = true;
-            }
-        }
-
-        _filteredContacts = currentlyFiltered;
-        StateHasChanged(); // Update UI after filtering
-        }
-
-        private async Task HandleExternalSearchOrAddClick()
-        {
-        _isLoadingExternal = true;
-        _externalSearchResults = null; // Clear previous results
-        _externalSearchAttempted = true; // Mark that we tried
+        _isLoading = true;
+        _searchAttempted = true; // Mark that we are attempting/have attempted a search
+        _searchResults = null;   // Clear previous results before new search
         StateHasChanged(); // Show loader
 
-        // --- !!! MOCK API CALL !!! ---
-        // Replace this with your actual API call logic
-        await Task.Delay(1500); // Simulate network latency
-        var mockResults = new List<Contact>();
-        // Simulate finding some external contacts based on the search term
-        if (_searchTerm.Contains("api", StringComparison.OrdinalIgnoreCase))
+        ApiResponse<List<SearchResult>>? apiResponse = null;
+        try
         {
-            mockResults.Add(new Contact { DisplayName = $"{_searchTerm} (API Result 1)", IsExternal = true });
-            mockResults.Add(new Contact { DisplayName = $"Another API Contact for {_searchTerm}", IsExternal = true });
-        }
-        else if (!string.IsNullOrWhiteSpace(_searchTerm))
-        {
-            // Simulate finding the exact match externally if not found locally
-            // Or just add the typed name as a potential new contact
-            mockResults.Add(new Contact { DisplayName = $"{_searchTerm} (External)", IsExternal = true });
-        }
-        // Simulate finding nothing
-        // else { mockResults = new List<Contact>(); }
+            apiResponse = await MessagingService.SearchUserAsync(_searchTerm);
 
-        _externalSearchResults = mockResults;
-        // --- !!! END MOCK API CALL !!! ---
-
-        _isLoadingExternal = false;
-        StateHasChanged(); // Hide loader, show results (or lack thereof)
+            if (apiResponse.Data != null && apiResponse.IsSuccess) // Check IsSuccessStatusCode or similar property
+            {
+                Console.WriteLine($"Search successful. Found {apiResponse.Data.Count} results.");
+                _searchResults = apiResponse.Data;
+            }
+            else
+            {
+                Console.WriteLine($"Search returned no data or failed. API Error: {apiResponse.ErrorMessage}");
+                _searchResults = new List<SearchResult>(); // Ensure empty list, not null
+                Snackbar.Add(apiResponse.ErrorMessage ?? "Search failed or found no results.", Severity.Warning); // Use Warning for "not found"
+            }
         }
-
-        private async Task SelectLocalContact(Contact contact)
+        catch (Exception ex)
         {
-        Console.WriteLine($"Local Contact Selected: {contact.DisplayName}");
-        await OnContactSelected.InvokeAsync(contact);
-        // Add selection highlighting logic later
+            Console.WriteLine($"Exception during search API call: {ex}");
+            _searchResults = new List<SearchResult>(); // Ensure empty list on exception
+            Snackbar.Add($"Error during search: {ex.Message}", Severity.Error);
         }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged(); // Hide loader, show results (or lack thereof)
+        }
+    }
 
-        private async Task SelectExternalContact(Contact contact)
-        {
-        Console.WriteLine($"External Contact Selected: {contact.DisplayName}");
-        // Decide what happens - maybe add it to local contacts first?
-        // For now, just invoke the main handler
-        await OnContactSelected.InvokeAsync(contact);
-        }
+    // Handles selecting a result from the list
+    private async Task SelectContact(ContactsResult contact)
+    {
+        Console.WriteLine($"Open conversation for UserID: {contact})");
+        string initials = GetInitials(contact.FirstName, contact.LastName);
 
-        // Add back GetInitials (ensure it handles potential null/empty strings)
-        private string GetInitials(string? name)
-        {
-        if (string.IsNullOrWhiteSpace(name)) return "?";
-        var parts = name.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0) return "?";
-        if (parts.Length >= 2)
-        {
-            return $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant();
-        }
-        return $"{parts[0][0]}".ToUpperInvariant();
-        }
-}
+        await localStorage.SetItemAsync<int>("contactID", contact.UserID);
+        await localStorage.SetItemAsStringAsync("contactInitials", initials);
+        navigationManager.NavigateTo($"/conversation");
+    }
+
+    private async Task SelectSearch(SearchResult result)
+    {
+        Console.WriteLine($"Open conversation for UserID: {result})");
+        string initials = GetInitials(result!.FirstName, result!.LastName);
+
+        await localStorage.SetItemAsync<int>("contactID", result.UserID);
+        await localStorage.SetItemAsStringAsync("contactInitials", initials);
+        navigationManager.NavigateTo($"/conversation");
+    }
+
+
+    private string GetInitials(string fName, string lName)
+    {
+        return fName![0].ToString() + lName![0];
+    }
+
+} 
