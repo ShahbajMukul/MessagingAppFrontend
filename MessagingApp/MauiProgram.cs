@@ -30,8 +30,9 @@ namespace MessagingApp
 
 
             // BackendAPI
+            // windows
             builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new System.Uri("https://localhost:5500/api/") });
-
+            // android
 //            builder.Services.AddScoped(sp =>
 //            {
 //#if ANDROID
@@ -56,6 +57,8 @@ namespace MessagingApp
 //                    BaseAddress = new System.Uri("https://10.0.0.23:5500/api/")  // Your dev machine's IP
 //                };
 //            });
+
+//end android
             builder.Services.AddScoped<MessagingService>();
             builder.Services.AddScoped<CryptographyService>();
 

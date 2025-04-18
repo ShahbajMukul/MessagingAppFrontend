@@ -1,36 +1,38 @@
-﻿@* Components/ContactsPanel.razor *@
-@page "/contacts"
+﻿@page "/contacts"
 @inject IDialogService DialogService
 @inject MessagingService MessagingService
+@inject NavigationManager navigationManager
+@inject ISnackbar Snackbar
 
-<MudPaper Class="pa-2" Elevation="0">
-    <MudToolBar Dense="true">
+<MudPaper Class="mx-n6 mx-auto" Elevation="2">
+    <MudText Typo="Typo.h5" Align="Align.Center" Class="mb-4">Contacts</MudText>
+
+    <MudToolBar Dense="true" Class="mb-3">
         <MudTextField @ref="_searchTextField"
-        T="string"
-        Value="_searchTerm"
-        ValueChanged="@OnSearchTermChanged"
-        Placeholder="Search a new user"
-        Variant="Variant.Outlined"
-        Margin="Margin.Dense"
-        Adornment="Adornment.Start"
-        AdornmentIcon="@Icons.Material.Filled.Search"
-        DebounceInterval="0"
-        Clearable="true"
-        OnKeyDown="HandleEnterForSearch"
-        OnClearButtonClick="@(() => { _searchTerm = string.Empty; _searchResults = null; _searchAttempted = false; })"
-        Immediate="true"
-        Class="flex-grow-1" />
-
+                      T="string"
+                      Value="_searchTerm"
+                      ValueChanged="@OnSearchTermChanged"
+                      Placeholder="Search a new user"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      DebounceInterval="0"
+                      Clearable="true"
+                      OnKeyDown="HandleEnterForSearch"
+                      OnClearButtonClick="@(() => { _searchTerm = string.Empty; _searchResults = null; _searchAttempted = false; })"
+                      Immediate="true"
+                      Class="flex-grow-1" />
         <MudButton Variant="Variant.Filled"
-        Color="Color.Primary"
-        OnClick="ExecuteSearch"
-        Disabled="_isLoading"
-        Class="ml-2">
+                   Color="Color.Primary"
+                   OnClick="ExecuteSearch"
+                   Disabled="_isLoading"
+                   Class="ml-2">
             Search
         </MudButton>
-    </MudToolBar> 
+    </MudToolBar>
 
-    <MudDivider Class="my-2" />
+    <MudDivider Class="my-3"/>
 
     @if (_isLoading)
     {
@@ -38,58 +40,22 @@
             <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
         </div>
     }
-    else if (_searchAttempted) // Only show results/message after a search was attempted
+    else if (_searchAttempted)
     {
-        @* @if (_searchResults?.Any() == true)
-        {
-            <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-2 mb-1">Search Results</MudText>
-            <MudList Clickable="true" Dense="true" T="SearchResult">
-                @foreach (var result in _searchResults)
-                {
-                    <MudSelectItem OnClick="@(() => SelectContact(result.UserID))">
-                        <!-- Original MudSelectItem with async Task handler -->
-                        <MudStack Row="true" Spacing="1">
-                            <MudAvatar Color="Color.Secondary" Size="Size.Medium" Class="me-5">@GetInitials(result.FirstName!, result.LastName!)</MudAvatar>
-                            <MudText Typo="Typo.h5">@result.FirstName</MudText>
-                            <MudText Typo="Typo.h5">@result.LastName</MudText>
-                        </MudStack>
-                    </MudSelectItem>
-                }
-            </MudList>
-        } *@
-
-        @* @if (_searchResults?.Any() == true)
-    {
-        <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-2 mb-1">Search Results</MudText>
-        <ul>
-            @foreach (var result in _searchResults)
-            {
-                <li>
-                    <button @onclick="() => TestButtonClicked(result.UserID)">
-                        <!-- Native MAUI Button -->
-                        @result.FirstName @result.LastName
-                    </button>
-                </li>
-            }
-        </ul>
-    } *@
         @if (_searchResults?.Any() == true)
         {
-            <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-2 mb-1">Search Results</MudText>
-            <MudList Clickable="true" Dense="true" T="SearchResult">
+            <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-2 mb-2">Search Results</MudText>
+            <MudList Dense="true" Clickable="true" T="SearchResult" Class="mb-4">
                 @foreach (var result in _searchResults)
                 {
-                    <MudSelectItem>
-                        <MudNavLink @onclick="() => SelectSearch(result)">
-                            <!-- MudSelectItem with void handler -->
-                            @* Avatar stays on the left *@
-                            <MudStack Row="true" Spacing="1">
-                                <MudAvatar Color="Color.Secondary" Size="Size.Medium" Class="me-5">@GetInitials(result.FirstName!, result.LastName!)</MudAvatar>
-                                <MudText Typo="Typo.h5">@result.FirstName</MudText>
-                                <MudText Typo="Typo.h5">@result.LastName</MudText>
-                            </MudStack>
-                        </MudNavLink>
-                    </MudSelectItem>
+                    <MudNavLink @onclick="() => SelectSearch(result)" Class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <MudAvatar Color="Color.Secondary" Size="Size.Medium" Class="me-3">
+                                @GetInitials(result.FirstName!, result.LastName!)
+                            </MudAvatar>
+                            <MudText Typo="Typo.h5">@result.FirstName @result.LastName</MudText>
+                        </div>
+                    </MudNavLink>
                 }
             </MudList>
         }
@@ -101,38 +67,35 @@
 
     @if(_contactsResults == null && !string.IsNullOrEmpty(contactsBodyText))
     {
-        <MudAlert Severity="Severity.Error">contactsBodyText</MudAlert>
+        <MudAlert Severity="Severity.Error">@contactsBodyText</MudAlert>
     }
-    else
+    else if(_contactsResults != null)
     {
-        if(_contactsResults != null )
-        {
-            <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-2 mb-1">Contacts</MudText>
-
-            <MudList Class="mt-2" Clickable="true" Dense="true" T="ContactsResult">
-                @foreach (var contact in _contactsResults)
+        <MudText Typo="Typo.h6" Align="Align.Center" Class="mt-2 mb-2">Your Contacts</MudText>
+        <MudList Dense="true" Clickable="true" T="ContactsResult">
+            @foreach (var contact in _contactsResults)
+            {
+                if (string.IsNullOrEmpty(_searchTerm) || searched(contact))
                 {
-                    if (string.IsNullOrEmpty(_searchTerm) || searched(contact))
-                    {
-                        <MudListItem OnClick="@(() => SelectContact(contact))">
-                            @* Avatar stays on the left *@
-                            <MudStack Row="true" Spacing="1">
+                    <MudListItem OnClick="@(() => SelectContact(contact))">
+                        @* Avatar stays on the left *@
+                        <MudStack Row="true" Spacing="1">
 
-                                <MudAvatar Color="Color.Secondary" Size="Size.Medium" Class="me-5">@GetInitials(contact!.FirstName!, contact!.LastName!)</MudAvatar>
+                            <MudAvatar Color="Color.Secondary" Size="Size.Medium" Class="me-5">@GetInitials(contact!.FirstName!, contact!.LastName!)</MudAvatar>
 
-                                <MudText Typo="Typo.h5">@contact.FirstName</MudText>
-                                <MudText Typo="Typo.h5">@contact.LastName</MudText>
-                            </MudStack>
-                        </MudListItem>
-                    }
+                            <MudText Typo="Typo.h5">@contact.FirstName</MudText>
+                            <MudText Typo="Typo.h5">@contact.LastName</MudText>
+                        </MudStack>
+                    </MudListItem>
                 }
-            </MudList>
-        }
+            }
+        </MudList>
     }
 </MudPaper>
 
 @code {
-
+    [Parameter]
+    public EventCallback<Contact> OnContactSelected { get; set; }
     private string contactsBodyText = string.Empty;
     private string _searchTerm = string.Empty;
     private MudTextField<string> _searchTextField = default!;
@@ -143,11 +106,9 @@
     private string privKey;
     private string pubKey;
 
-
     // For API to fill
     private List<ContactsResult>? _contactsResults;
-    private List<SearchResult>? _searchResults; 
-
+    private List<SearchResult>? _searchResults;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -155,15 +116,12 @@
         {
             try
             {
-
-                // test
+                // Retrieve and assign keys and user data as needed
                 rlResult = await localStorage.GetItemAsync<RegiLoginResult>("UserData");
-                privKey = await localStorage.GetItemAsStringAsync("PrivateKey") ?? string.Empty; // Use string.Empty for consistency
+                privKey = await localStorage.GetItemAsStringAsync("PrivateKey") ?? string.Empty;
                 pubKey = await localStorage.GetItemAsStringAsync("PublicKey") ?? string.Empty;
 
-
                 var contactsApiResult = await messagingService.GetContactsAsync();
-
                 if (contactsApiResult.IsSuccess)
                 {
                     _contactsResults = contactsApiResult.Data;
@@ -175,9 +133,8 @@
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"!!!!!!!!!! ContactsPanel: ERROR in OnAfterRenderAsync (firstRender): {ex}");
-                Snackbar.Add("Failed to load contacts: " + ex);
-                // Optionally re-throw or handle gracefully
+                Console.WriteLine($"ContactsPanel ERROR in OnAfterRenderAsync (firstRender): {ex}");
+                Snackbar.Add("Failed to load contacts: " + ex.Message, Severity.Error);
             }
             StateHasChanged();
         }
@@ -190,19 +147,15 @@
         if (_searchAttempted)
         {
             _searchResults = null;
-            _searchAttempted = false; // Ready for a new search attempt
+            _searchAttempted = false;
         }
     }
 
     private bool searched(ContactsResult contact)
     {
-        if (contact.FirstName.Contains(_searchTerm) || 
-            contact.LastName.Contains(_searchTerm) || 
-            contact.Username.Contains(_searchTerm))
-        {
-            return true; 
-        }
-        return false;
+        return contact.FirstName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+               contact.LastName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+               contact.Username.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task HandleEnterForSearch(KeyboardEventArgs args)
@@ -213,59 +166,55 @@
         }
     }
 
-    // Executes the search via API call
     private async Task ExecuteSearch()
     {
         if (string.IsNullOrWhiteSpace(_searchTerm))
         {
             Snackbar.Add("Please enter a search term.", Severity.Warning);
-            _searchResults = null; // Clear results if term is empty
-            _searchAttempted = false; // Reset search attempt state
+            _searchResults = null;
+            _searchAttempted = false;
             StateHasChanged();
             return;
         }
 
         _isLoading = true;
-        _searchAttempted = true; // Mark that we are attempting/have attempted a search
-        _searchResults = null;   // Clear previous results before new search
-        StateHasChanged(); // Show loader
+        _searchAttempted = true;
+        _searchResults = null;
+        StateHasChanged();
 
         ApiResponse<List<SearchResult>>? apiResponse = null;
         try
         {
             apiResponse = await MessagingService.SearchUserAsync(_searchTerm);
-
-            if (apiResponse.Data != null && apiResponse.IsSuccess) // Check IsSuccessStatusCode or similar property
+            if (apiResponse.Data != null && apiResponse.IsSuccess)
             {
                 Console.WriteLine($"Search successful. Found {apiResponse.Data.Count} results.");
                 _searchResults = apiResponse.Data;
             }
             else
             {
-                Console.WriteLine($"Search returned no data or failed. API Error: {apiResponse.ErrorMessage}");
-                _searchResults = new List<SearchResult>(); // Ensure empty list, not null
-                Snackbar.Add(apiResponse.ErrorMessage ?? "Search failed or found no results.", Severity.Warning); // Use Warning for "not found"
+                Console.WriteLine($"Search failed. API Error: {apiResponse.ErrorMessage}");
+                _searchResults = new List<SearchResult>();
+                Snackbar.Add(apiResponse.ErrorMessage ?? "Search failed or no results found.", Severity.Warning);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Exception during search API call: {ex}");
-            _searchResults = new List<SearchResult>(); // Ensure empty list on exception
+            _searchResults = new List<SearchResult>();
             Snackbar.Add($"Error during search: {ex.Message}", Severity.Error);
         }
         finally
         {
             _isLoading = false;
-            StateHasChanged(); // Hide loader, show results (or lack thereof)
+            StateHasChanged();
         }
     }
 
-    // Handles selecting a result from the list
     private async Task SelectContact(ContactsResult contact)
     {
-        Console.WriteLine($"Open conversation for UserID: {contact})");
+        Console.WriteLine($"Open conversation for UserID: {contact.UserID}");
         string initials = GetInitials(contact.FirstName, contact.LastName);
-
         await localStorage.SetItemAsync<int>("contactID", contact.UserID);
         await localStorage.SetItemAsStringAsync("contactInitials", initials);
         navigationManager.NavigateTo($"/conversation");
@@ -273,18 +222,17 @@
 
     private async Task SelectSearch(SearchResult result)
     {
-        Console.WriteLine($"Open conversation for UserID: {result})");
-        string initials = GetInitials(result!.FirstName, result!.LastName);
-
+        Console.WriteLine($"Open conversation for UserID: {result.UserID}");
+        string initials = GetInitials(result.FirstName, result.LastName);
         await localStorage.SetItemAsync<int>("contactID", result.UserID);
         await localStorage.SetItemAsStringAsync("contactInitials", initials);
         navigationManager.NavigateTo($"/conversation");
     }
 
-
     private string GetInitials(string fName, string lName)
     {
-        return fName![0].ToString() + lName![0];
+        return !string.IsNullOrWhiteSpace(fName) && !string.IsNullOrWhiteSpace(lName)
+            ? fName[0].ToString().ToUpper() + lName[0].ToString().ToUpper()
+            : string.Empty;
     }
-
-} 
+}

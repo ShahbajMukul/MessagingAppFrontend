@@ -1,62 +1,42 @@
 ﻿@inherits LayoutComponentBase
 @inject NavigationManager NavigationManager
-@* Assuming you have a Contact model defined/imported *@
-@using MessagingApp.Shared.Models; 
-@using MessagingApp.Shared.Pages;
+
 <MudThemeProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
+
 <MudLayout>
     <MudAppBar Elevation="1">
-        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@DrawerToggle" />
+        <MudIconButton 
+            Icon="@Icons.Material.Filled.Contacts" 
+            Color="Color.Inherit" 
+            Edge="Edge.Start" 
+            OnClick="NavigateToContacts" />
         <MudSpacer />
-
         <MudText Typo="Typo.h6">Nexus Secure Messenger</MudText>
         <MudSpacer />
-        <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="Logout" />
+        <MudIconButton
+            Icon="@Icons.Material.Filled.Logout"
+            Color="Color.Inherit"
+            OnClick="Logout" />
     </MudAppBar>
 
-    @* <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2" Variant="@DrawerVariant.Persistent">
-@*         <ContactsPanel  />
-  </MudDrawer> *@
-
-    <MudMainContent Class="pt-16 px-4">
-        <MudContainer MaxWidth="MaxWidth.False">
-            @Body
-        </MudContainer>
-    </MudMainContent>
+    <MudDrawerContainer>
+        <MudMainContent Class="pt-16 px-4">
+            <MudContainer MaxWidth="MaxWidth.False">
+                @Body
+            </MudContainer>
+        </MudMainContent>
+    </MudDrawerContainer>
 </MudLayout>
 
 @code {
-    bool _drawerOpen = true;
-    private Contact? _selectedContactForHighlighting; // To track selected contact
+    void NavigateToContacts() =>
+        NavigationManager.NavigateTo("/contacts");
 
-    void DrawerToggle()
+    Task Logout()
     {
-        _drawerOpen = !_drawerOpen;
-    }
-
-    // This method handles the event from ContactsPanel
-    void HandleContactSelected(Contact selectedContact)
-    {
-
-        Console.WriteLine($"MainLayout: Contact selected - {selectedContact.DisplayName}"); // Add log
-                                                                                            // Navigate to the chat page for this contact
-        NavigationManager.NavigateTo($"/conversation/{selectedContact.UserID}");
-        // Optional: Close drawer on mobile after selection?
-        // if (IsMobile) { _drawerOpen = false; }
-        StateHasChanged(); // Ensure UI updates if needed
-    }
-
-    async Task Logout()
-    {
-        // TODO: Implement logout logic
-        Console.WriteLine("Logout requested");
         NavigationManager.NavigateTo("/login", forceLoad: true);
+        return Task.CompletedTask;
     }
-
-
-
-    // Need to define Contact class or import it
-    // public class Contact { public string UserId { get; set; } = ""; public string DisplayName { get; set; } = ""; public string PublicKey { get; set; } = "";}
-}  
+}

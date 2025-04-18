@@ -37,7 +37,7 @@
  *@            <MudNavLink OnClick="@(() => GoTo("register"))">Don't have an account? Register</MudNavLink>
 
             @* <MudNavLink OnClick="@(() => GoTo("test"))">Test</MudNavLink> *@
-
+@* <h4>@authTest</h4> *@
         </EditForm>
     </div>
 </div>
@@ -47,6 +47,7 @@
     private ApiResponse<RegiLoginResult>? loginResult;
     private bool isLoading = false;
     string? pubKey = string.Empty;
+    string authTest = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -72,8 +73,9 @@
                 };
             }
             // success case: 
-            await SaveUserData(loginResult.Data);
+            await SaveUserData(loginResult.Data!);
             navigationManager.NavigateTo("/contacts");
+            // authTest = await localStorage.GetItemAsStringAsync("AuthToken") ?? "No token found";
 
         }
         catch (OperationCanceledException)
@@ -112,13 +114,16 @@
     private async Task SaveUserData(RegiLoginResult data)
     {
         await localStorage.SetItemAsync<RegiLoginResult>("UserData", data);
-
+    
         // encrypt these later
         await localStorage.SetItemAsync<string>("PublicKey", cryptographyService.PublicKeyString);
         await localStorage.SetItemAsync<string>("PrivateKey", cryptographyService.PrivateKeyString);
-
+    
         // save the token for other api calls
         messagingService.SetAuthHeader(data.Token);
+    
+        // store the token in localStorage under the key expected by the SignalR AccessTokenProvider
+        await localStorage.SetItemAsStringAsync("AuthToken", data.Token);
     }
 
     private void NevigateToRegister()

@@ -1,5 +1,6 @@
 ﻿@page "/conversation"
 @* Inject services later if needed for real data *@
+@using Microsoft.AspNetCore.SignalR.Client
 
 @if (_isLoading)
 {
@@ -32,7 +33,7 @@ else
         </MudAppBar> *@
 
         @* --- Chat Area (Scrollable) --- *@
-        <MudPaper Elevation="0" Class="flex-grow-1 pa-2" Style="overflow-y: auto;">
+        <MudPaper Elevation="0" Class="mx-n6 mt-1" Style="overflow-y: auto;">
             @if (_allMessages == null || !_allMessages.Any())
             {
                 <MudText Align="Align.Center">No messages yet.</MudText>
@@ -43,14 +44,16 @@ else
                 {
                     <MudChat ChatPosition="@GetBubblePosition(message.SenderUserID)">
                         <MudChatHeader Name="@(message.SenderUserID == _currentUserInfo?.UserID ? "" : $"{_contact?.FirstName} {_contact?.LastName}")" Time="@message.SentTime.ToString("MM/dd HH:mm tt")" />
-                        @if (message.SenderUserID != _currentUserInfo.UserID)
+                        @if (message.SenderUserID != _currentUserInfo!.UserID)
                         {
-                            <MudAvatar Size="@Size.Small">
+                            <MudAvatar Size="@Size.Small" Color="Color.Secondary">
                                 @ContactInitials
                             </MudAvatar>
                         }
-                        <MudChatBubble Color="@(message.SenderUserID == _currentUserInfo.UserID ? Color.Primary : Color.Default)">
-                            @message.Content
+                        <MudChatBubble Color="@(message.SenderUserID == _currentUserInfo.UserID ? Color.Primary : Color.Tertiary)">
+                            <MudText Style="white-space: pre-wrap; word-wrap: break-word;">
+                                @message.Content
+                            </MudText>
                             @* <br />
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="flex-grow: 1;"></div> <MudText Typo="Typo.caption" Style="font-size: 0.5rem;">@message.SentTime.ToString("MM/dd HH:mm tt")</MudText>
@@ -64,15 +67,17 @@ else
         </MudPaper>
 
         @* --- Input Area --- *@
-        <MudPaper Elevation="2" Class="pa-2">
+        <MudPaper Elevation="2" Class="mx-n6 my-1">
             <MudStack Row="true" AlignItems="AlignItems.Center">
                 <MudTextField @bind-Value="_newMessageContent"
+                @ref="messageField"
                 Placeholder="Type a message..."
                 Variant="Variant.Outlined"
                 Lines="1"
                 Class="flex-grow-1"
                 Adornment="Adornment.End"
-                OnKeyDown="HandleInputKeyDown" />
+                OnKeyUp="HandleInputKeyUp" />
+
                 <MudIconButton Icon="@Icons.Material.Filled.Send"
                 Color="Color.Primary"
                 OnClick="SendMessageAsync"
@@ -86,6 +91,7 @@ else
 
 
 @code {
+
     public int ContactID { get; set; }
     private string? ContactInitials { get; set; }
     public int conversationID { get; set; }
@@ -93,7 +99,7 @@ else
     private OpenConversationResult? _contact;
     private List<MessageResult>? _offlineMessages;
     private List<MessageResult>? _onlineFetchedMessages;
-    private List<MessageResult>? _allMessages = new List<MessageResult>(); // Initialize to avoid null issues
+    private List<MessageResult>? _allMessages = new List<MessageResult>();
 
     // singalR connection
     private HubConnection? _hubConnection;
@@ -103,6 +109,7 @@ else
     private bool _isLoading = true;
     private string errorText = string.Empty;
 
+    private MudTextField<string> messageField;
     private string _newMessageContent = string.Empty;
 
 
@@ -110,39 +117,144 @@ else
     private DotNetObjectReference<ConversationPage> dotNetHelper; // refernece to this component
 
 
-    protected override Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
-        await InitializeSignalRAsync();
+        await LoadConversationDataAsync();
+        if (conversationID > 0 && string.IsNullOrEmpty(errorText))
+        {
+            await InitializeSignalRAsync();
+        }
+        else if (string.IsNullOrEmpty(errorText))
+        {
+            errorText = "Could not initialize real-time connection: conversationID not available";
+            _isLoading = false;
+            StateHasChanged();
+        }
+        else
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
     }
 
-    private async Task IntializeSignalRAsync()
+    private async Task InitializeSignalRAsync()
     {
-        var hubUrl = navigationManager.ToAbsoluteUri("/chathub");
-        Console.WriteLine("trying to connect to signalR hub at " + hubUrl);
+        // Explicitly set the hub URL to the correct backend URL and port (adjust if necessary)
+        //windows
+        var hubUrl = new Uri("https://localhost:5500/chathub");
+        // android
+        //var hubUrl = new Uri("https://10.0.0.23:5500/chathub");
+
+        Console.WriteLine("Attempting to connect to SignalR hub at " + hubUrl);
 
         _hubConnection = new HubConnectionBuilder()
-                            .WithUrl(hubUrl)
                             .WithAutomaticReconnect()
-                            .WithAccessTokenProvider(async () =>
+                            .WithUrl(hubUrl, options =>
                             {
-                                var token = await localStorage.GetItemAsStringAsync("authToken");
-                                return token;
+                                // Accept self-signed certificates for development.
+                                options.HttpMessageHandlerFactory = (message) =>
+                                {
+                                    if (message is HttpClientHandler clientHandler)
+                                    {
+                                        clientHandler.ServerCertificateCustomValidationCallback =
+                                                                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                                    }
+                                    return message;
+                                };
+
+                                options.AccessTokenProvider = async () =>
+                                {
+                                    var token = await localStorage.GetItemAsStringAsync("AuthToken");
+                                    Console.WriteLine($"SignalR: Providing token: {(string.IsNullOrEmpty(token) ? "null or empty" : "obtained")}");
+                                    return token;
+                                };
                             })
                             .Build();
 
         // Behavior when the server sends a message
-        _hubConnection.On<MessageResult>("ReceiveMessage", async (messageResult) =>
-            if (messageResult.ConversationID == this.conversationID)
+        _hubConnection.On<MessageResult>("ReceiveMessage", async (newReceivedMsg) =>
         {
-            Console.WriteLine($"SignalR received message for this conversation: {messageResult.ConversationID}");
+            if (newReceivedMsg.ConversationID == this.conversationID)
+            {
+                Console.WriteLine($"SignalR received message for this conversation: {newReceivedMsg.ConversationID}");
 
-            // decrypt the message
-            if (messageResult.Sender)
+                // decrypt the message
+                if (newReceivedMsg.SenderUserID != _currentUserInfo!.UserID)
+                {
+                    try
+                    {
+                        string decryptedContent = cryptographyService.DecryptMessage(newReceivedMsg.Content, newReceivedMsg.EncryptedKey, newReceivedMsg.IV);
+                        // Set the decrypted content to newReceivedMsg
+                        newReceivedMsg.Content = decryptedContent;
+                        _allMessages ??= new List<MessageResult>();
+
+                        _allMessages.Add(newReceivedMsg);
+                        await Task.Delay(100);
+                        await JSRuntime.InvokeVoidAsync("scrollToElement", "scrollTarget"); // Scroll to the new message
+                        await InvokeAsync(StateHasChanged);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"SignalR: Decryption failed for received message {newReceivedMsg.MessageID}: {ex.Message}");
+                        newReceivedMsg.Content = "New message received, but decryption failed";
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"SignalR: Received echo of sent message {newReceivedMsg.MessageID}.");
+                }
+
+
+                // if the new message wasn't in the list, add it
+                // if (!_allMessages.Any(mbox => mbox.MessageID == newReceivedMsg.MessageID))
+                // {
+                //     _allMessages.Add(newReceivedMsg);
+                //     _allMessages = _allMessages.OrderBy(mbox => mbox.SentTime).ToList();
+                // }
+                // 
+
+            }
+            else
+            {
+                Console.WriteLine("Problem: SignalR received message for a different conversation.");
+            }
+        });
+
+        try
+        {
+            Console.WriteLine("Starting SignalR connection...");
+            await _hubConnection.StartAsync();
+            Console.WriteLine("SignalR connection started successfully.");
+            if (_hubConnection.State == HubConnectionState.Connected && conversationID > 0)
+            {
+                try
+                {
+                    string groupName = $"conversation-{conversationID}";
+                    await _hubConnection.SendAsync("JoinConversationGroup", groupName);
+                    Console.WriteLine($"SignalR: Requested to join group '{groupName}'.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"SignalR: Error requesting to join group 'conversation-{conversationID}': {ex.Message}");
+                    errorText = "Could not join real-time chat group.";
+                    StateHasChanged();
+                }
+            }
+            else
+            {
+                Console.WriteLine($"SignalR connection not in Connected state ({_hubConnection.State}) or conversationID invalid ({conversationID}), cannot join group.");
+                errorText = $"Real-time connection failed or invalid conversation state.";
+                StateHasChanged();
+            }
         }
-        )
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error starting SignalR connection: {ex.Message}");
+            errorText = $"Real-time connection failed: {ex.Message}";
+        }
     }
 
-    protected override async Task OnParametersSetAsync()
+    private async Task LoadConversationDataAsync()
     {
         _isLoading = true;
         errorText = string.Empty;
@@ -247,9 +359,35 @@ else
 
         _isLoading = false;
         StateHasChanged();
+        await JSRuntime.InvokeVoidAsync("scrollToElement", "scrollTarget"); 
         // await JSRuntime.InvokeVoidAsync("scrollToElement", "scrollTarget");
     }
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null && _hubConnection.State == HubConnectionState.Connected && conversationID > 0)
+        {
+            try
+            {
+                string groupName = $"conversation-{conversationID}";
+                await _hubConnection.SendAsync("LeaveConversationGroup", groupName);
+                Console.WriteLine($"SignalR: Requested to leave group '{groupName}'.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"SignalR: Error requesting to leave group 'conversation-{conversationID}': {ex.Message}");
+                // Log error, but continue disposal
+            }
+        }
 
+        if (_hubConnection is not null)
+        {
+            Console.WriteLine("Disposing SignalR connection...");
+            await _hubConnection.DisposeAsync();
+            Console.WriteLine("SignalR connection disposed.");
+        }
+        dotNetHelper?.Dispose();
+        Console.WriteLine("ConversationPage disposed.");
+    }
     private async Task getOnlineMessages(int conversationID)
     {
         // get the messages
@@ -296,11 +434,12 @@ else
         return senderId == _currentUserInfo?.UserID ? ChatBubblePosition.End : ChatBubblePosition.Start;
     }
 
-    private async Task HandleInputKeyDown(KeyboardEventArgs e)
+    private async Task HandleInputKeyUp(KeyboardEventArgs args)
     {
-        if (e.Key == "Enter" && !e.ShiftKey) // Send on Enter, allow Shift+Enter for newline
+        if (args.Key == "Enter") 
         {
             await SendMessageAsync();
+
         }
     }
 
@@ -309,9 +448,9 @@ else
         // Add null check for _allMessages
         if (string.IsNullOrWhiteSpace(_newMessageContent) || _contact == null || _currentUserInfo == null || _allMessages == null) return;
 
-        var tempMessageContent = _newMessageContent; // Store plaintext before clearing
+        var tempMessageContent = _newMessageContent; 
         _newMessageContent = string.Empty; // Clear input field immediately for better UX
-
+        await messageField.Clear();
         GeneratedEncryptedStuff encryptedMessage;
         try
         {
@@ -360,8 +499,10 @@ else
             };
         _allMessages.Add(localMessage);
         _allMessages = _allMessages.OrderBy(m => m.SentTime).ToList(); // Re-sort
+        _newMessageContent = string.Empty;
         StateHasChanged(); // Update UI immediately
-                           // --- End of Local Add ---
+        await Task.Delay(100);
+        await JSRuntime.InvokeVoidAsync("scrollToElement", "scrollTarget"); // Scroll to the new message
 
 
         // Send to API
