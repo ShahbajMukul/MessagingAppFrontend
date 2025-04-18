@@ -36,16 +36,16 @@ namespace MessagingApp
 //            builder.Services.AddScoped(sp =>
 //            {
 //#if ANDROID
-//                    var handler = new AndroidMessageHandler();
-//                    handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>
-//                    {
+//                var handler = new AndroidMessageHandler();
+//                handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>
+//                {
 //#if DEBUG
 //                        // Only allow this in development
 //                        return true;
 //#else
-//                        return errors == System.Net.Security.SslPolicyErrors.None;
+//                    return errors == System.Net.Security.SslPolicyErrors.None;
 //#endif
-//                    };
+//                };
 //#elif DEBUG
 //                var handler = new HttpClientHandler();
 //#else
@@ -58,7 +58,7 @@ namespace MessagingApp
 //                };
 //            });
 
-//end android
+            //end android
             builder.Services.AddScoped<MessagingService>();
             builder.Services.AddScoped<CryptographyService>();
 
