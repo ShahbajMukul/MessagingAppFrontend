@@ -1,16 +1,9 @@
 
 # Messaging App Frontend
-+-------------------------+       HTTPS       +------------------------+      DB Calls       +-----------------+
-|   .NET MAUI Blazor     |   <-------------> | ASP.NET Core Minimal   |   <---------------> |   SQL Server    |
-|       Hybrid           |      (API Calls)  |         API            |      (Stored Procs) | (Encrypted Data)|
-| (Android, Windows)     |                   | (Business Logic, Auth) |                     |                 |
-| - UI (Blazor/MudBlazor)|                   | - SignalR Hub          |                     |                 |
-| - Key Gen & Crypto     |   <-------------> |                        |                     |                 |
-| - SignalR Client       |     (SignalR WS)  |                        |                     |                 |
-+-------------------------+                   +------------------------+                     +-----------------+
+
 ## High-Level System Architecture
 
-## 3. Technology Stack
+##  Technology Stack
 
 - **Frontend:** .NET MAUI, Blazor Hybrid, MudBlazor (for UI components)
 - **Backend:** ASP.NET Core 8 (Minimal API)
@@ -22,7 +15,7 @@
 - **Language:** C#
 - **Development Environment:** Visual Studio 2022
 
-## 4. Core Functionality
+##  Core Functionality
 
 - **User Registration & Login:** Users can register with unique credentials. During registration and subsequent logins, the client application generates a new RSA public/private key pair locally.
 - **Contact Management:** Users can search for other registered users and view their list of contacts.
@@ -30,7 +23,7 @@
 - **Messaging:** Users can type and send messages within a conversation. Messages undergo the end-to-end encryption process before being sent to the backend. Received messages are decrypted locally.
 - **Real-time Updates:** New messages received while a conversation is open are pushed to the client in real-time using SignalR, decrypted, and displayed without requiring a manual refresh.
 
-## 5. Security Implementation: End-to-End Encryption
+##  Security Implementation: End-to-End Encryption
 
 The core security feature is end-to-end encryption, ensuring message confidentiality between the sender and recipient. A hybrid encryption approach is utilized, combining the strengths of asymmetric and symmetric cryptography.
 
@@ -62,7 +55,7 @@ The core security feature is end-to-end encryption, ensuring message confidentia
 
 This process ensures that message content is only ever in plaintext on the sender's and recipient's devices during composition and viewing, respectively.
 
-## 6. Real-time Communication (SignalR)
+##  Real-time Communication (SignalR)
 
 To avoid constant polling and provide an instant messaging experience, SignalR is employed:
 
@@ -73,7 +66,7 @@ To avoid constant polling and provide an instant messaging experience, SignalR i
 - **Receiving:** The client listens for the `ReceiveMessage` event. Upon receiving a message, it performs the decryption process described above and updates the UI dynamically using `InvokeAsync`.
 - **Lifecycle:** The client joins the group when the conversation is initialized and leaves the group when the component is disposed (`DisposeAsync`) to manage resources efficiently.
 
-## 7. Database Interaction
+##  Database Interaction
 
 Microsoft SQL Server serves as the data persistence layer. The backend interacts with the database primarily through stored procedures, accessed via a repository pattern. This encapsulates data access logic and ensures maintainability.
 
@@ -84,7 +77,7 @@ Stored information includes:
 - Conversation metadata (IDs, participants).
 - Messages (ConversationID, SenderID, Timestamp, IV, Encrypted AES Key, Encrypted Content).
 
-## 8. Platform Support
+##  Platform Support
 
 The application is developed using .NET MAUI Blazor Hybrid, currently supporting:
 
@@ -93,14 +86,14 @@ The application is developed using .NET MAUI Blazor Hybrid, currently supporting
 - **macOS:** Untested due to development environment constraints.
 - **Browser (WebAssembly):** Explicitly **not supported**. This decision was made due to limitations in the standard .NET WebAssembly runtime regarding the `System.Security.Cryptography.RSA.Create` API.
 
-## 9. Limitations and Challenges
+##  Limitations and Challenges
 
 - **Message History Decryption:** The most significant limitation stems directly from the security decision to generate ephemeral RSA keys on each login and not store private keys server-side. When keys are lost, historical messages cannot be decrypted.
 - **No Browser Support:** As detailed above, the inability to easily perform client-side RSA key generation in .NET WASM without JS interop prevents browser deployment.
 - **Key Management:** The ephemeral nature of keys simplifies server security but places the onus of potential future key backup/restore entirely on the client-side (which is not implemented), introducing challenges.
 - **Untested Platforms:** Lack of testing on macOS means potential platform-specific issues are unknown.
 
-## 10. Future Work
+##  Future Work
 
 - **Address History Limitation:** Investigate secure client-side key backup/restore mechanisms (e.g., encrypting the private key with a user-derived password/phrase and storing it locally or in a secure cloud environment).
 - **Browser Support:** Implement the JavaScript interop workaround for RSA key generation if browser support becomes a requirement.
@@ -109,7 +102,7 @@ The application is developed using .NET MAUI Blazor Hybrid, currently supporting
 - **Group Chats:** Extend the architecture to support multi-user group conversations.
 - **Error Handling & UX:** Improve robustness and provide clearer user feedback for connection issues, decryption failures, etc.
 
-## 11. Conclusion
+##  Conclusion
 
 This project successfully demonstrates the implementation of a secure messaging application using .NET MAUI Blazor Hybrid and ASP.NET Core Minimal API, featuring end-to-end encryption with a hybrid cryptographic approach, real-time communication, and a robust backend powered by ASP.NET Core and SQL Server.
 
